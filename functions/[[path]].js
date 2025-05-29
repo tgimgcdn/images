@@ -21,6 +21,17 @@ app.use('*', async (c, next) => {
     await next();
 });
 
+// 检查数据库连接中间件
+app.use('*', async (c, next) => {
+    if (!c.env?.DB) {
+        console.error('Database not bound!');
+        if (c.req.path.startsWith('/api/')) {
+            return c.json({ error: 'Database not configured' }, 500);
+        }
+    }
+    await next();
+});
+
 // 应用中间件
 app.use('*', sessionMiddleware);
 app.use('*', checkAdminAccess);
@@ -46,7 +57,7 @@ app.use('/*', serveStatic({ root: './public' }));
 async function sessionMiddleware(c, next) {
     const sessionId = getCookie(c, 'session_id');
     
-    if (sessionId) {
+    if (sessionId && c.env?.DB) {
         try {
             const session = await c.env.DB.prepare(
                 'SELECT * FROM sessions WHERE id = ? AND expires_at > CURRENT_TIMESTAMP'
@@ -85,7 +96,7 @@ async function checkAdminAccess(c, next) {
 // 中间件：检查是否允许游客上传
 async function checkGuestUpload(c, next) {
     // 只检查上传路径
-    if (c.req.path === '/api/upload' && c.req.method === 'POST') {
+    if (c.req.path === '/api/upload' && c.req.method === 'POST' && c.env?.DB) {
         try {
             const setting = await c.env.DB.prepare(
                 'SELECT value FROM settings WHERE key = ?'
@@ -109,7 +120,7 @@ async function checkGuestUpload(c, next) {
 api.get('/settings/guest-upload', async (c) => {
     console.log('Entering /settings/guest-upload handler');
     try {
-        if (!c.env.DB) {
+        if (!c.env?.DB) {
             console.error('Database not bound!');
             return c.json({
                 success: false,
@@ -141,6 +152,15 @@ api.get('/settings/guest-upload', async (c) => {
             error: 'Failed to fetch settings'
         }, 500);
     }
+});
+
+// 添加一个健康检查端点
+api.get('/health', (c) => {
+    return c.json({
+        success: true,
+        message: 'Service is running',
+        database: c.env?.DB ? 'connected' : 'not connected'
+    });
 });
 
 // 导出处理函数
