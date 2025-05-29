@@ -47,6 +47,53 @@ app.use('/api/*', async (c, next) => {
     await next();
 });
 
+// API routes
+api.get('/settings/guest-upload', async (c) => {
+    console.log('Entering /settings/guest-upload handler');
+    try {
+        if (!c.env?.DB) {
+            console.error('Database not bound!');
+            return c.json({
+                success: false,
+                error: 'Database not configured'
+            }, 500);
+        }
+
+        const result = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?')
+            .bind('allow_guest_upload')
+            .first();
+        
+        console.log('Guest upload setting:', result);
+        
+        // 设置正确的 Content-Type
+        c.header('Content-Type', 'application/json');
+        
+        return c.json({
+            success: true,
+            data: {
+                allowGuestUpload: result?.value === 'true'
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching guest upload settings:', error);
+        // 确保错误响应也是 JSON 格式
+        c.header('Content-Type', 'application/json');
+        return c.json({
+            success: false,
+            error: 'Failed to fetch settings'
+        }, 500);
+    }
+});
+
+// 添加一个健康检查端点
+api.get('/health', (c) => {
+    return c.json({
+        success: true,
+        message: 'Service is running',
+        database: c.env?.DB ? 'connected' : 'not connected'
+    });
+});
+
 // 挂载 API 路由
 app.route('/api', api);
 
@@ -115,53 +162,6 @@ async function checkGuestUpload(c, next) {
     }
     await next();
 }
-
-// API routes
-api.get('/settings/guest-upload', async (c) => {
-    console.log('Entering /settings/guest-upload handler');
-    try {
-        if (!c.env?.DB) {
-            console.error('Database not bound!');
-            return c.json({
-                success: false,
-                error: 'Database not configured'
-            }, 500);
-        }
-
-        const result = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?')
-            .bind('allow_guest_upload')
-            .first();
-        
-        console.log('Guest upload setting:', result);
-        
-        // 设置正确的 Content-Type
-        c.header('Content-Type', 'application/json');
-        
-        return c.json({
-            success: true,
-            data: {
-                allowGuestUpload: result?.value === 'true'
-            }
-        });
-    } catch (error) {
-        console.error('Error fetching guest upload settings:', error);
-        // 确保错误响应也是 JSON 格式
-        c.header('Content-Type', 'application/json');
-        return c.json({
-            success: false,
-            error: 'Failed to fetch settings'
-        }, 500);
-    }
-});
-
-// 添加一个健康检查端点
-api.get('/health', (c) => {
-    return c.json({
-        success: true,
-        message: 'Service is running',
-        database: c.env?.DB ? 'connected' : 'not connected'
-    });
-});
 
 // 导出处理函数
 export const onRequest = app.fetch; 
