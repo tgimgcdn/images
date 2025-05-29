@@ -2,13 +2,27 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { serveStatic } from 'hono/cloudflare-workers';
 
-// 创建独立的 API 应用实例
+// 创建主应用实例
+const app = new Hono();
+
+// 创建 API 应用实例
 const api = new Hono();
+
+// 确保所有 API 响应都设置正确的 Content-Type
+api.use('*', async (c, next) => {
+    c.header('Content-Type', 'application/json');
+    await next();
+});
 
 // API 路由定义
 api.get('/settings/guest-upload', async (c) => {
     console.log('Entering /settings/guest-upload handler');
     try {
+        if (!c.env?.DB) {
+            console.error('Database not bound!');
+            return c.json({ error: 'Database not configured' }, 500);
+        }
+
         const result = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?')
             .bind('allow_guest_upload')
             .first();
@@ -38,35 +52,23 @@ api.get('/health', (c) => {
     });
 });
 
-// 创建主应用实例
-const app = new Hono();
-
-// API 请求的全局错误处理
-app.use('/api/*', async (c, next) => {
+// 全局错误处理
+app.use('*', async (c, next) => {
     try {
         await next();
     } catch (err) {
         console.error('Error:', err);
-        return c.json({ error: 'Internal Server Error' }, 500);
+        if (c.req.path.startsWith('/api/')) {
+            c.header('Content-Type', 'application/json');
+            return c.json({ error: 'Internal Server Error' }, 500);
+        }
+        throw err;
     }
 });
 
-// API 请求的数据库检查
-app.use('/api/*', async (c, next) => {
-    if (!c.env?.DB) {
-        console.error('Database not bound!');
-        return c.json({ error: 'Database not configured' }, 500);
-    }
-    await next();
-});
-
-// API 请求的调试日志
-app.use('/api/*', async (c, next) => {
-    console.log('API Request:', {
-        method: c.req.method,
-        path: c.req.path,
-        headers: Object.fromEntries(c.req.headers.entries())
-    });
+// 请求日志
+app.use('*', async (c, next) => {
+    console.log(`[${new Date().toISOString()}] ${c.req.method} ${c.req.path}`);
     await next();
 });
 
@@ -136,16 +138,10 @@ app.use('*', sessionMiddleware);
 app.use('*', checkAdminAccess);
 app.use('*', checkGuestUpload);
 
-// 确保所有 API 响应都设置正确的 Content-Type
-app.use('/api/*', async (c, next) => {
-    c.header('Content-Type', 'application/json');
-    await next();
-});
-
-// 挂载 API 路由 - 必须在静态文件处理之前
+// 先挂载 API 路由
 app.route('/api', api);
 
-// 最后才处理静态文件
+// 最后处理静态文件
 app.use('/*', serveStatic({ root: './public' }));
 
 // 导出处理函数
