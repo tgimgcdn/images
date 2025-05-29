@@ -11,4 +11,4 @@ database_name = "images"
 database_id = "images"
 
 [site]
-bucket = "./src/public" 
+bucket = "./public" 
