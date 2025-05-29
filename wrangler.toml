@@ -1,6 +1,14 @@
-name = "github-pages-image-hosting"
-main = "src/app.js"
+name = "github-to-pages"
 compatibility_date = "2024-02-20"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+SITE_URL = "http://localhost:8787"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "images"
+database_id = "images"
 
 [site]
 bucket = "./src/public" 

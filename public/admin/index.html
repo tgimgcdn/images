@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - CloudFlare Pages图床管理系统</title>
+    <link rel="stylesheet" href="/css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="admin-container">
+        <nav class="admin-nav">
+            <div class="nav-header">
+                <div class="logo">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h1>图床管理系统</h1>
+                </div>
+            </div>
+            <ul class="nav-menu">
+                <li class="active" data-page="dashboard">
+                    <a href="#dashboard">
+                        <i class="fas fa-chart-line"></i>
+                        <span>控制面板</span>
+                    </a>
+                </li>
+                <li data-page="images">
+                    <a href="#images">
+                        <i class="fas fa-images"></i>
+                        <span>图片管理</span>
+                    </a>
+                </li>
+                <li data-page="settings">
+                    <a href="#settings">
+                        <i class="fas fa-cog"></i>
+                        <span>系统设置</span>
+                    </a>
+                </li>
+            </ul>
+            <div class="nav-footer">
+                <button id="logoutBtn" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>退出登录</span>
+                </button>
+            </div>
+        </nav>
+
+        <main class="admin-main">
+            <header class="main-header">
+                <div class="header-left">
+                    <h2 id="pageTitle">控制面板</h2>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <i class="fas fa-user-circle"></i>
+                        <span id="username">管理员</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="main-content">
+                <!-- 控制面板 -->
+                <section id="dashboard" class="page active">
+                    <div class="dashboard-stats">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-image"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>总图片数</h3>
+                                <p class="stat-number" id="totalImages">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-upload"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>今日上传</h3>
+                                <p class="stat-number" id="todayUploads">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-eye"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>总访问量</h3>
+                                <p class="stat-number" id="totalViews">0</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-charts">
+                        <div class="chart-card">
+                            <h3>访问趋势</h3>
+                            <div class="chart-container">
+                                <canvas id="viewsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 图片管理 -->
+                <section id="images" class="page">
+                    <div class="toolbar">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchInput" placeholder="搜索图片...">
+                        </div>
+                        <div class="filter-box">
+                            <select id="sortSelect">
+                                <option value="newest">最新上传</option>
+                                <option value="oldest">最早上传</option>
+                                <option value="most_views">最多访问</option>
+                                <option value="least_views">最少访问</option>
+                            </select>
+                        </div>
+                        <div class="action-box">
+                            <button class="btn btn-primary" id="uploadBtn">
+                                <i class="fas fa-upload"></i>
+                                上传图片
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="image-grid" id="imageList">
+                        <!-- 图片列表将通过 JavaScript 动态加载 -->
+                    </div>
+
+                    <div class="pagination" id="pagination">
+                        <!-- 分页控件将通过 JavaScript 动态加载 -->
+                    </div>
+                </section>
+
+                <!-- 系统设置 -->
+                <section id="settings" class="page">
+                    <div class="settings-card">
+                        <h3>基本设置</h3>
+                        <form id="settingsForm" class="settings-form">
+                            <div class="form-group">
+                                <label class="switch-label">
+                                    <span>允许游客上传</span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="allowGuestUpload" name="allow_guest_upload">
+                                        <span class="slider"></span>
+                                    </label>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="siteName">站点名称</label>
+                                <input type="text" id="siteName" name="site_name" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i>
+                                    保存设置
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- 上传模态框 -->
+    <div class="modal" id="uploadModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>上传图片</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-area" id="uploadArea">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>拖放文件到这里或点击选择文件</p>
+                    <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+                </div>
+                <div class="upload-progress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-info">
+                        <span class="progress-text">0%</span>
+                        <span class="progress-speed">0 KB/s</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/js/admin/main.js"></script>
+</body>
+</html> 

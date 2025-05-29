@@ -4,8 +4,9 @@
   "description": "A simple image hosting system using GitHub and CloudFlare Pages",
   "main": "src/app.js",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "dev": "wrangler dev src/app.js --local",
+    "deploy": "wrangler deploy",
+    "build": "cp -r src/public public"
   },
   "dependencies": {
     "@cloudflare/workers-types": "^4.20240208.0",

@@ -42,7 +42,7 @@ app.use('/api/*', async (c, next) => {
 app.route('/api', api);
 
 // 处理静态文件
-app.use('/*', serveStatic({ root: './' }));
+app.use('/*', serveStatic({ root: './public' })); // 修改静态文件根目录
 
 // 验证 reCAPTCHA
 async function verifyRecaptcha(token, c) {
@@ -177,123 +177,5 @@ api.get('/settings/guest-upload', async (c) => {
     }
 });
 
-api.post('/upload', async (c) => {
-    try {
-        const formData = await c.req.formData();
-        const file = formData.get('file');
-        
-        if (!file) {
-            return c.json({ error: '未找到文件' }, 400);
-        }
-
-        // 初始化 Octokit
-        const octokit = new Octokit({
-            auth: c.env.GITHUB_TOKEN
-        });
-
-        // 上传到 GitHub
-        const buffer = await file.arrayBuffer();
-        const content = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-        
-        const response = await octokit.rest.repos.createOrUpdateFileContents({
-            owner: c.env.GITHUB_OWNER,
-            repo: c.env.GITHUB_REPO,
-            path: `images/${file.name}`,
-            message: `Upload ${file.name}`,
-            content: content,
-            branch: 'main'
-        });
-
-        // 保存到数据库
-        await c.env.DB.prepare(`
-            INSERT INTO images (filename, size, mime_type, github_path, sha)
-            VALUES (?, ?, ?, ?, ?)
-        `).bind(
-            file.name,
-            file.size,
-            file.type,
-            `images/${file.name}`,
-            response.data.content.sha
-        ).run();
-
-        // 返回各种格式的链接
-        const imageUrl = `${c.env.SITE_URL}/images/${file.name}`;
-        return c.json({
-            success: true,
-            data: {
-                url: imageUrl,
-                markdown: `![${file.name}](${imageUrl})`,
-                html: `<img src="${imageUrl}" alt="${file.name}">`,
-                bbcode: `[img]${imageUrl}[/img]`
-            }
-        });
-    } catch (error) {
-        console.error('Upload error:', error);
-        return c.json({ error: '上传失败' }, 500);
-    }
-});
-
-api.post('/admin/login', async (c) => {
-    try {
-        const { username, password, recaptchaResponse } = await c.req.json();
-        
-        // 验证 reCAPTCHA
-        if (c.env.RECAPTCHA_SECRET_KEY) {
-            if (!recaptchaResponse) {
-                return c.json({ error: '请完成人机验证' }, 400);
-            }
-            
-            const isValid = await verifyRecaptcha(recaptchaResponse, c);
-            if (!isValid) {
-                return c.json({ error: '人机验证失败' }, 400);
-            }
-        }
-        
-        // 查询用户
-        const user = await c.env.DB.prepare(
-            'SELECT * FROM users WHERE username = ?'
-        ).bind(username).first();
-        
-        if (!user) {
-            return c.json({ error: '用户名或密码错误' }, 401);
-        }
-        
-        // 验证密码
-        const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) {
-            return c.json({ error: '用户名或密码错误' }, 401);
-        }
-        
-        // 创建会话
-        const sessionId = crypto.randomUUID();
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // 7天后过期
-        
-        await c.env.DB.prepare(`
-            INSERT INTO sessions (id, user_id, username, expires_at)
-            VALUES (?, ?, ?, ?)
-        `).bind(
-            sessionId,
-            user.id,
-            user.username,
-            expiresAt.toISOString()
-        ).run();
-        
-        // 设置 cookie
-        setCookie(c, 'session_id', sessionId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'Strict',
-            expires: expiresAt,
-            path: '/'
-        });
-        
-        return c.json({ success: true });
-    } catch (error) {
-        console.error('Login error:', error);
-        return c.json({ error: '登录失败' }, 500);
-    }
-});
-
 // 导出处理函数
-export default app; 
+export const onRequest = app.fetch; 
