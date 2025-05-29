@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>统计信息 - 图片托管系统</title>
+    <link rel="stylesheet" href="/css/admin.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>统计信息</h1>
+            <nav class="admin-nav">
+                <a href="/admin/dashboard.html">返回仪表盘</a>
+            </nav>
+        </header>
+
+        <main class="admin-main">
+            <!-- 系统总体统计 -->
+            <section class="stats-section">
+                <h2>系统总体统计</h2>
+                <div class="stats-grid">
+                    <div class="stats-card">
+                        <h3>总图片数</h3>
+                        <p id="totalImages">加载中...</p>
+                    </div>
+                    <div class="stats-card">
+                        <h3>总访问量</h3>
+                        <p id="totalViews">加载中...</p>
+                    </div>
+                    <div class="stats-card">
+                        <h3>总存储空间</h3>
+                        <p id="totalSize">加载中...</p>
+                    </div>
+                    <div class="stats-card">
+                        <h3>运行天数</h3>
+                        <p id="totalDays">加载中...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 访问趋势图 -->
+            <section class="stats-section">
+                <h2>访问趋势</h2>
+                <div class="chart-container">
+                    <canvas id="viewsChart"></canvas>
+                </div>
+            </section>
+
+            <!-- 最受欢迎图片 -->
+            <section class="stats-section">
+                <h2>最受欢迎图片</h2>
+                <div class="popular-images" id="popularImages">
+                    <p>加载中...</p>
+                </div>
+            </section>
+
+            <!-- 图片详情统计 -->
+            <section class="stats-section">
+                <h2>图片详情统计</h2>
+                <div class="image-stats" id="imageStats">
+                    <p>请选择一张图片查看详细统计信息</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/js/admin/stats.js"></script>
+</body>
+</html> 
