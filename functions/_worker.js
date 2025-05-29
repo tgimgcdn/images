@@ -11,6 +11,7 @@ app.use('*', async (c, next) => {
         await next();
     } catch (err) {
         console.error('Error:', err);
+        c.header('Content-Type', 'application/json');
         return c.json({ error: 'Internal Server Error' }, 500);
     }
 });
@@ -22,12 +23,11 @@ app.use('*', async (c, next) => {
 });
 
 // 检查数据库连接中间件
-app.use('*', async (c, next) => {
+app.use('/api/*', async (c, next) => {
     if (!c.env?.DB) {
         console.error('Database not bound!');
-        if (c.req.path.startsWith('/api/')) {
-            return c.json({ error: 'Database not configured' }, 500);
-        }
+        c.header('Content-Type', 'application/json');
+        return c.json({ error: 'Database not configured' }, 500);
     }
     await next();
 });
@@ -44,6 +44,7 @@ app.use('/api/*', async (c, next) => {
         path: c.req.path,
         headers: Object.fromEntries(c.req.headers.entries())
     });
+    c.header('Content-Type', 'application/json');
     await next();
 });
 
@@ -51,22 +52,11 @@ app.use('/api/*', async (c, next) => {
 api.get('/settings/guest-upload', async (c) => {
     console.log('Entering /settings/guest-upload handler');
     try {
-        if (!c.env?.DB) {
-            console.error('Database not bound!');
-            return c.json({
-                success: false,
-                error: 'Database not configured'
-            }, 500);
-        }
-
         const result = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?')
             .bind('allow_guest_upload')
             .first();
         
         console.log('Guest upload setting:', result);
-        
-        // 设置正确的 Content-Type
-        c.header('Content-Type', 'application/json');
         
         return c.json({
             success: true,
@@ -76,8 +66,6 @@ api.get('/settings/guest-upload', async (c) => {
         });
     } catch (error) {
         console.error('Error fetching guest upload settings:', error);
-        // 确保错误响应也是 JSON 格式
-        c.header('Content-Type', 'application/json');
         return c.json({
             success: false,
             error: 'Failed to fetch settings'
@@ -94,10 +82,10 @@ api.get('/health', (c) => {
     });
 });
 
-// 挂载 API 路由
+// 重要：先挂载 API 路由，再处理静态文件
 app.route('/api', api);
 
-// 处理静态文件
+// 最后处理静态文件
 app.use('/*', serveStatic({ root: './public' }));
 
 // 中间件：会话管理
