@@ -10,5 +10,9 @@ binding = "DB"
 database_name = "images"
 database_id = "images"
 
+[build]
+command = "npm run build"
+pages_build_output_dir = "public"
+
 [site]
 bucket = "./public" 
