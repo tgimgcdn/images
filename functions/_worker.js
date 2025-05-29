@@ -2,53 +2,10 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { serveStatic } from 'hono/cloudflare-workers';
 
-const app = new Hono();
+// 创建独立的 API 应用实例
 const api = new Hono();
 
-// 错误处理中间件
-app.use('*', async (c, next) => {
-    try {
-        await next();
-    } catch (err) {
-        console.error('Error:', err);
-        c.header('Content-Type', 'application/json');
-        return c.json({ error: 'Internal Server Error' }, 500);
-    }
-});
-
-// 请求日志中间件
-app.use('*', async (c, next) => {
-    console.log(`[${new Date().toISOString()}] ${c.req.method} ${c.req.path}`);
-    await next();
-});
-
-// 检查数据库连接中间件
-app.use('/api/*', async (c, next) => {
-    if (!c.env?.DB) {
-        console.error('Database not bound!');
-        c.header('Content-Type', 'application/json');
-        return c.json({ error: 'Database not configured' }, 500);
-    }
-    await next();
-});
-
-// 应用中间件
-app.use('*', sessionMiddleware);
-app.use('*', checkAdminAccess);
-app.use('*', checkGuestUpload);
-
-// 添加调试中间件
-app.use('/api/*', async (c, next) => {
-    console.log('API Request:', {
-        method: c.req.method,
-        path: c.req.path,
-        headers: Object.fromEntries(c.req.headers.entries())
-    });
-    c.header('Content-Type', 'application/json');
-    await next();
-});
-
-// API routes
+// API 路由定义
 api.get('/settings/guest-upload', async (c) => {
     console.log('Entering /settings/guest-upload handler');
     try {
@@ -73,7 +30,6 @@ api.get('/settings/guest-upload', async (c) => {
     }
 });
 
-// 添加一个健康检查端点
 api.get('/health', (c) => {
     return c.json({
         success: true,
@@ -82,13 +38,39 @@ api.get('/health', (c) => {
     });
 });
 
-// 重要：先挂载 API 路由，再处理静态文件
-app.route('/api', api);
+// 创建主应用实例
+const app = new Hono();
 
-// 最后处理静态文件
-app.use('/*', serveStatic({ root: './public' }));
+// API 请求的全局错误处理
+app.use('/api/*', async (c, next) => {
+    try {
+        await next();
+    } catch (err) {
+        console.error('Error:', err);
+        return c.json({ error: 'Internal Server Error' }, 500);
+    }
+});
 
-// 中间件：会话管理
+// API 请求的数据库检查
+app.use('/api/*', async (c, next) => {
+    if (!c.env?.DB) {
+        console.error('Database not bound!');
+        return c.json({ error: 'Database not configured' }, 500);
+    }
+    await next();
+});
+
+// API 请求的调试日志
+app.use('/api/*', async (c, next) => {
+    console.log('API Request:', {
+        method: c.req.method,
+        path: c.req.path,
+        headers: Object.fromEntries(c.req.headers.entries())
+    });
+    await next();
+});
+
+// 会话管理中间件
 async function sessionMiddleware(c, next) {
     const sessionId = getCookie(c, 'session_id');
     
@@ -114,9 +96,8 @@ async function sessionMiddleware(c, next) {
     await next();
 }
 
-// 中间件：检查管理后台访问权限
+// 管理后台访问权限检查
 async function checkAdminAccess(c, next) {
-    // 只检查 /admin/ 路径，且排除登录页面和API
     if (c.req.path.startsWith('/admin/') && 
         !c.req.path.includes('/admin/login.html') && 
         !c.req.path.includes('/api/admin/login')) {
@@ -128,9 +109,8 @@ async function checkAdminAccess(c, next) {
     await next();
 }
 
-// 中间件：检查是否允许游客上传
+// 游客上传检查
 async function checkGuestUpload(c, next) {
-    // 只检查上传路径
     if (c.req.path === '/api/upload' && c.req.method === 'POST' && c.env?.DB) {
         try {
             const setting = await c.env.DB.prepare(
@@ -150,6 +130,23 @@ async function checkGuestUpload(c, next) {
     }
     await next();
 }
+
+// 应用通用中间件
+app.use('*', sessionMiddleware);
+app.use('*', checkAdminAccess);
+app.use('*', checkGuestUpload);
+
+// 确保所有 API 响应都设置正确的 Content-Type
+app.use('/api/*', async (c, next) => {
+    c.header('Content-Type', 'application/json');
+    await next();
+});
+
+// 挂载 API 路由 - 必须在静态文件处理之前
+app.route('/api', api);
+
+// 最后才处理静态文件
+app.use('/*', serveStatic({ root: './public' }));
 
 // 导出处理函数
 export const onRequest = app.fetch; 
