@@ -3,18 +3,14 @@
   "version": "1.0.0",
   "description": "A simple image hosting system using GitHub and CloudFlare Pages",
   "main": "functions/[[path]].js",
+  "type": "module",
   "scripts": {
     "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
     "build": "echo 'No build step needed - using directory structure as is'"
   },
   "dependencies": {
-    "@cloudflare/workers-types": "^4.20240208.0",
-    "@hono/node-server": "^1.8.2",
-    "bcryptjs": "^2.4.3",
-    "hono": "^4.0.5",
-    "itty-router": "^4.0.27",
-    "octokit": "^3.1.2"
+    "hono": "^4.0.5"
   },
   "devDependencies": {
     "wrangler": "^3.28.1"
