@@ -7,6 +7,11 @@
       "routePath": "/_worker",
       "mountPath": "/",
       "module": ["_worker.js:onRequest"]
+    },
+    {
+      "routePath": "/api/*",
+      "mountPath": "/api",
+      "module": ["_worker.js:onRequest"]
     }
   ]
 } 
