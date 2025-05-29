@@ -14,6 +14,110 @@ api.use('*', async (c, next) => {
     await next();
 });
 
+// 获取仪表盘数据
+api.get('/admin/dashboard', async (c) => {
+    try {
+        if (!c.env?.DB) {
+            return c.json({ error: 'Database not configured' }, 500);
+        }
+
+        // 获取图片总数
+        const totalImages = await c.env.DB.prepare('SELECT COUNT(*) as count FROM images').first();
+        
+        // 获取今日上传数
+        const todayUploads = await c.env.DB.prepare(`
+            SELECT COUNT(*) as count 
+            FROM images 
+            WHERE DATE(created_at) = DATE(CURRENT_TIMESTAMP)
+        `).first();
+        
+        // 获取最近上传的图片
+        const recentImages = await c.env.DB.prepare(`
+            SELECT * FROM images 
+            ORDER BY created_at DESC 
+            LIMIT 5
+        `).all();
+
+        return c.json({
+            success: true,
+            data: {
+                totalImages: totalImages.count,
+                todayUploads: todayUploads.count,
+                recentImages: recentImages.results
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        return c.json({
+            success: false,
+            error: 'Failed to fetch dashboard data'
+        }, 500);
+    }
+});
+
+// 获取图片列表
+api.get('/admin/images', async (c) => {
+    try {
+        if (!c.env?.DB) {
+            return c.json({ error: 'Database not configured' }, 500);
+        }
+
+        const page = parseInt(c.req.query('page') || '1');
+        const limit = parseInt(c.req.query('limit') || '20');
+        const offset = (page - 1) * limit;
+
+        const images = await c.env.DB.prepare(`
+            SELECT * FROM images 
+            ORDER BY created_at DESC 
+            LIMIT ? OFFSET ?
+        `).bind(limit, offset).all();
+
+        const total = await c.env.DB.prepare('SELECT COUNT(*) as count FROM images').first();
+
+        return c.json({
+            success: true,
+            data: {
+                images: images.results,
+                pagination: {
+                    total: total.count,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total.count / limit)
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching images:', error);
+        return c.json({
+            success: false,
+            error: 'Failed to fetch images'
+        }, 500);
+    }
+});
+
+// 删除图片
+api.delete('/admin/images/:id', async (c) => {
+    try {
+        if (!c.env?.DB) {
+            return c.json({ error: 'Database not configured' }, 500);
+        }
+
+        const id = c.req.param('id');
+        await c.env.DB.prepare('DELETE FROM images WHERE id = ?').bind(id).run();
+
+        return c.json({
+            success: true,
+            message: 'Image deleted successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting image:', error);
+        return c.json({
+            success: false,
+            error: 'Failed to delete image'
+        }, 500);
+    }
+});
+
 // 获取所有设置
 api.get('/settings', async (c) => {
     try {
