@@ -1,6 +1,4 @@
 import { Hono } from 'hono';
-import { Octokit } from 'octokit';
-import bcrypt from 'bcryptjs';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { serveStatic } from 'hono/cloudflare-workers';
 
@@ -42,30 +40,7 @@ app.use('/api/*', async (c, next) => {
 app.route('/api', api);
 
 // 处理静态文件
-app.use('/*', serveStatic({ root: './public' })); // 修改静态文件根目录
-
-// 验证 reCAPTCHA
-async function verifyRecaptcha(token, c) {
-    if (!token || !c.env.RECAPTCHA_SECRET_KEY) {
-        return true; // 如果没有配置 reCAPTCHA，直接返回 true
-    }
-
-    try {
-        const response = await fetch('https://recaptcha.net/recaptcha/api/siteverify', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: `secret=${c.env.RECAPTCHA_SECRET_KEY}&response=${token}`
-        });
-
-        const data = await response.json();
-        return data.success;
-    } catch (error) {
-        console.error('reCAPTCHA verification error:', error);
-        return false;
-    }
-}
+app.use('/*', serveStatic({ root: './public' }));
 
 // 中间件：会话管理
 async function sessionMiddleware(c, next) {
@@ -126,15 +101,6 @@ async function checkGuestUpload(c, next) {
             console.error('Guest upload check error:', error);
             return c.json({ error: '检查上传权限失败' }, 500);
         }
-    }
-    await next();
-}
-
-// 中间件：管理员验证
-async function requireAdmin(c, next) {
-    const session = await c.get('session');
-    if (!session || !session.userId) {
-        return c.json({ error: '请先登录' }, 401);
     }
     await next();
 }
