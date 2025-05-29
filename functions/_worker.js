@@ -14,12 +14,70 @@ api.use('*', async (c, next) => {
     await next();
 });
 
-// API 路由定义
+// 获取所有设置
+api.get('/settings', async (c) => {
+    try {
+        if (!c.env?.DB) {
+            return c.json({ error: 'Database not configured' }, 500);
+        }
+
+        const settings = await c.env.DB.prepare('SELECT * FROM settings').all();
+        const settingsMap = {};
+        
+        for (const setting of settings.results) {
+            settingsMap[setting.key] = setting.value;
+        }
+        
+        return c.json({
+            success: true,
+            data: settingsMap
+        });
+    } catch (error) {
+        console.error('Error fetching settings:', error);
+        return c.json({
+            success: false,
+            error: 'Failed to fetch settings'
+        }, 500);
+    }
+});
+
+// 更新设置
+api.post('/settings', async (c) => {
+    try {
+        if (!c.env?.DB) {
+            return c.json({ error: 'Database not configured' }, 500);
+        }
+
+        const settings = await c.req.json();
+        
+        for (const [key, value] of Object.entries(settings)) {
+            await c.env.DB.prepare(`
+                INSERT INTO settings (key, value, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = CURRENT_TIMESTAMP
+            `).bind(key, value).run();
+        }
+        
+        return c.json({
+            success: true,
+            message: 'Settings updated successfully'
+        });
+    } catch (error) {
+        console.error('Error updating settings:', error);
+        return c.json({
+            success: false,
+            error: 'Failed to update settings'
+        }, 500);
+    }
+});
+
+// 获取游客上传设置
 api.get('/settings/guest-upload', async (c) => {
     console.log('Entering /settings/guest-upload handler');
     try {
         if (!c.env?.DB) {
-            console.error('Database not bound!');
             return c.json({ error: 'Database not configured' }, 500);
         }
 
@@ -44,6 +102,7 @@ api.get('/settings/guest-upload', async (c) => {
     }
 });
 
+// 健康检查端点
 api.get('/health', (c) => {
     return c.json({
         success: true,
