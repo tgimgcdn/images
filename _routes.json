@@ -9,9 +9,12 @@
       "module": ["_worker.js:onRequest"]
     },
     {
-      "routePath": "/api/*",
-      "mountPath": "/api",
-      "module": ["_worker.js:onRequest"]
+      "pattern": "/api/*",
+      "script": "_worker.js"
+    },
+    {
+      "pattern": "/admin/*",
+      "script": "_worker.js"
     }
   ]
 } 
