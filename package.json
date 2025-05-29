@@ -2,11 +2,11 @@
   "name": "github-to-pages",
   "version": "1.0.0",
   "description": "A simple image hosting system using GitHub and CloudFlare Pages",
-  "main": "src/app.js",
+  "main": "functions/[[path]].js",
   "scripts": {
-    "dev": "wrangler dev src/app.js --local",
+    "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
-    "build": "cp -r src/public public"
+    "build": "echo 'No build step needed - using directory structure as is'"
   },
   "dependencies": {
     "@cloudflare/workers-types": "^4.20240208.0",
