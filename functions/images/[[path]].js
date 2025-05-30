@@ -11,19 +11,6 @@ export async function onRequest(context) {
     path: path
   });
 
-  // 检查是否是导航请求
-  const isNavigation = request.headers.get('sec-fetch-mode') === 'navigate';
-  if (isNavigation) {
-    // 重定向到正确的图片URL
-    return new Response(null, {
-      status: 302,
-      headers: {
-        'Location': `/images/${path}`,
-        'Cache-Control': 'no-cache'
-      }
-    });
-  }
-
   try {
     // 构建资源路径
     const assetPath = `public/images/${path}`;
@@ -34,7 +21,9 @@ export async function onRequest(context) {
     const assetRequest = new Request(assetUrl, {
       method: 'GET',
       headers: {
-        'Accept': 'image/*'
+        'Accept': 'image/*',
+        'sec-fetch-mode': 'no-cors',
+        'sec-fetch-dest': 'image'
       }
     });
     
@@ -46,6 +35,7 @@ export async function onRequest(context) {
       headers.set('Cache-Control', 'public, max-age=31536000');
       headers.set('Access-Control-Allow-Origin', '*');
       headers.set('Content-Type', response.headers.get('Content-Type') || 'image/jpeg');
+      headers.set('X-Content-Type-Options', 'nosniff');
       
       return new Response(response.body, {
         status: 200,
