@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { serveStatic } from 'hono/cloudflare-workers';
-import { Octokit } from 'octokit';
 
 // 创建主应用实例
 const app = new Hono();
@@ -264,43 +263,6 @@ app.use('*', checkGuestUpload);
 
 // 先挂载 API 路由
 app.route('/api', api);
-
-// 处理图片请求
-app.get('/images/*', async (c) => {
-  const path = c.req.path.replace('/images/', '');
-  console.log('处理图片请求:', path);
-  
-  try {
-    // 从 GitHub 获取图片
-    const octokit = new Octokit({
-      auth: c.env.GITHUB_TOKEN
-    });
-
-    const response = await octokit.rest.repos.getContent({
-      owner: c.env.GITHUB_OWNER,
-      repo: c.env.GITHUB_REPO,
-      path: `images/${path}`,
-      ref: 'main'
-    });
-
-    if (response.data.type === 'file') {
-      const content = response.data.content;
-      const contentType = response.data.type === 'file' ? 
-        response.data.download_url.split('.').pop().toLowerCase() : 'application/octet-stream';
-      
-      return new Response(Buffer.from(content, 'base64'), {
-        headers: {
-          'Content-Type': `image/${contentType}`,
-          'Cache-Control': 'public, max-age=31536000',
-          ...corsHeaders
-        }
-      });
-    }
-  } catch (error) {
-    console.error('获取图片失败:', error);
-    return c.notFound();
-  }
-});
 
 // 处理静态文件
 app.use('/*', serveStatic({ root: './public' }));
