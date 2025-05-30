@@ -282,11 +282,25 @@ export async function onRequest(context) {
 
   try {
     // 处理静态文件
-    if (path.startsWith('/js/') || path.startsWith('/css/') || path.startsWith('/images/')) {
+    if (path.startsWith('/js/') || path.startsWith('/css/') || path.startsWith('/images/') || path === '/favicon.ico') {
       const filePath = path.substring(1); // 移除开头的斜杠
       const file = await env.ASSETS.fetch(new URL(filePath, request.url));
+      
       if (file.status === 200) {
-        return file;
+        // 设置正确的 Content-Type
+        const contentType = getContentType(filePath);
+        const headers = new Headers(file.headers);
+        headers.set('Content-Type', contentType);
+        
+        // 添加 CORS 头
+        Object.entries(corsHeaders).forEach(([key, value]) => {
+          headers.set(key, value);
+        });
+        
+        return new Response(file.body, {
+          status: 200,
+          headers: headers
+        });
       }
     }
 
@@ -294,7 +308,12 @@ export async function onRequest(context) {
     if (path === '/' || path === '/index.html') {
       const file = await env.ASSETS.fetch(new URL('index.html', request.url));
       if (file.status === 200) {
-        return file;
+        const headers = new Headers(file.headers);
+        headers.set('Content-Type', 'text/html');
+        return new Response(file.body, {
+          status: 200,
+          headers: headers
+        });
       }
     }
 
@@ -302,7 +321,12 @@ export async function onRequest(context) {
     if (path.startsWith('/admin/')) {
       const file = await env.ASSETS.fetch(new URL(path.substring(1), request.url));
       if (file.status === 200) {
-        return file;
+        const headers = new Headers(file.headers);
+        headers.set('Content-Type', 'text/html');
+        return new Response(file.body, {
+          status: 200,
+          headers: headers
+        });
       }
     }
 
@@ -330,4 +354,32 @@ export async function onRequest(context) {
       }
     });
   }
+}
+
+// 根据文件扩展名获取正确的 Content-Type
+function getContentType(filePath) {
+  const ext = filePath.split('.').pop().toLowerCase();
+  const mimeTypes = {
+    'css': 'text/css',
+    'js': 'application/javascript',
+    'html': 'text/html',
+    'ico': 'image/x-icon',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'svg': 'image/svg+xml',
+    'webp': 'image/webp',
+    'json': 'application/json',
+    'txt': 'text/plain',
+    'pdf': 'application/pdf',
+    'xml': 'application/xml',
+    'zip': 'application/zip',
+    'mp4': 'video/mp4',
+    'webm': 'video/webm',
+    'mp3': 'audio/mpeg',
+    'wav': 'audio/wav'
+  };
+  
+  return mimeTypes[ext] || 'application/octet-stream';
 } 
