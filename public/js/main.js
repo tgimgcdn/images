@@ -91,8 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const response = await fetch('/api/settings/guest-upload', {
                 method: 'GET',
                 headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
+                    'Accept': 'application/json'
                 },
                 credentials: 'same-origin'
             });
