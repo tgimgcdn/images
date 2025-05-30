@@ -2,13 +2,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
     const uploadBtn = document.getElementById('uploadBtn');
-    const uploadList = document.getElementById('uploadList');
     const resultContainer = document.querySelector('.result-container');
     const closeResult = document.getElementById('closeResult');
     const progressBar = document.querySelector('.progress-fill');
     const progressText = document.querySelector('.progress-text');
     const progressSpeed = document.querySelector('.progress-speed');
-    const previewImage = document.querySelector('.preview-image');
     const toast = document.getElementById('toast');
 
     // 初始化文件上传功能
@@ -219,9 +217,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 显示上传结果
     function showResult(data) {
         resultContainer.style.display = 'block';
-        
-        // 设置预览图
-        previewImage.src = data.url;
         
         // 设置各种格式的链接
         const linkInputs = document.querySelectorAll('.link-input');
