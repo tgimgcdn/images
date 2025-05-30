@@ -132,6 +132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const startTime = Date.now();
         let uploadedCount = 0;
         const totalFiles = files.length;
+        const uploadedResults = [];
 
         // 显示进度条
         document.querySelector('.upload-progress').style.display = 'block';
@@ -153,6 +154,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const result = await response.json();
                 uploadedCount++;
+                uploadedResults.push(result.data);
 
                 // 更新进度
                 const percent = Math.round((uploadedCount / totalFiles) * 100);
@@ -163,9 +165,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const speed = (uploadedCount * file.size) / ((Date.now() - startTime) / 1000);
                 progressSpeed.textContent = formatSpeed(speed);
 
-                // 显示最后一个文件的上传结果
+                // 显示所有文件的上传结果
                 if (uploadedCount === totalFiles) {
-                    showResult(result.data);
+                    showResult(uploadedResults);
                 }
             } catch (error) {
                 showToast(error.message);
@@ -184,15 +186,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 显示上传结果
-    function showResult(data) {
+    function showResult(results) {
         resultContainer.style.display = 'block';
         
         // 设置各种格式的链接
         const linkInputs = document.querySelectorAll('.link-input');
-        linkInputs[0].value = data.url;
-        linkInputs[1].value = data.markdown;
-        linkInputs[2].value = data.html;
-        linkInputs[3].value = data.bbcode;
+        
+        // 直接链接
+        linkInputs[0].value = results.map(r => r.url).join('\n');
+        
+        // Markdown
+        linkInputs[1].value = results.map(r => r.markdown).join('\n');
+        
+        // HTML
+        linkInputs[2].value = results.map(r => r.html).join('\n');
+        
+        // BBCode
+        linkInputs[3].value = results.map(r => r.bbcode).join('\n');
         
         // 添加复制功能
         document.querySelectorAll('.copy-btn').forEach(btn => {
