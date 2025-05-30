@@ -1,4 +1,4 @@
-import { Octokit } from 'octokit';
+import { serveStatic } from 'hono/cloudflare-workers';
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -12,31 +12,20 @@ export async function onRequest(context) {
   });
 
   try {
-    // 从 GitHub 获取图片
-    const octokit = new Octokit({
-      auth: env.GITHUB_TOKEN
-    });
+    // 直接从静态资源目录获取图片
+    const response = await serveStatic({
+      root: './'
+    })(context);
 
-    const response = await octokit.rest.repos.getContent({
-      owner: env.GITHUB_OWNER,
-      repo: env.GITHUB_REPO,
-      path: `images/${path}`,
-      ref: 'main'
-    });
-
-    if (response.data.type === 'file') {
-      const content = response.data.content;
-      const contentType = response.data.type === 'file' ? 
-        response.data.download_url.split('.').pop().toLowerCase() : 'application/octet-stream';
-      
-      return new Response(Buffer.from(content, 'base64'), {
-        headers: {
-          'Content-Type': `image/${contentType}`,
-          'Cache-Control': 'public, max-age=31536000',
-          'Access-Control-Allow-Origin': '*'
-        }
-      });
+    if (response.status === 200) {
+      // 添加缓存控制头
+      response.headers.set('Cache-Control', 'public, max-age=31536000');
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      return response;
     }
+
+    // 如果找不到图片，返回 404
+    return new Response('Not Found', { status: 404 });
   } catch (error) {
     console.error('获取图片失败:', error);
     return new Response('Not Found', { status: 404 });
