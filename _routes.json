@@ -8,7 +8,11 @@
       "script": "/functions/api/[[path]].js"
     },
     {
-      "pattern": "/*",
+      "pattern": "/admin/*",
+      "script": "/functions/[[path]].js"
+    },
+    {
+      "pattern": "/admin",
       "script": "/functions/[[path]].js"
     }
   ]
