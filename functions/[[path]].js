@@ -16,13 +16,29 @@ const corsHeaders = {
   'Access-Control-Allow-Credentials': 'true'
 };
 
-// 确保所有 API 响应都设置正确的 Content-Type
-api.use('*', async (c, next) => {
-  c.header('Content-Type', 'application/json');
-  Object.entries(corsHeaders).forEach(([key, value]) => {
-    c.header(key, value);
-  });
+// 确保所有响应都设置正确的 Content-Type
+app.use('*', async (c, next) => {
   await next();
+  const path = c.req.path;
+  if (path.endsWith('.js')) {
+    c.header('Content-Type', 'application/javascript');
+  } else if (path.endsWith('.css')) {
+    c.header('Content-Type', 'text/css');
+  } else if (path.endsWith('.html')) {
+    c.header('Content-Type', 'text/html');
+  } else if (path.endsWith('.ico')) {
+    c.header('Content-Type', 'image/x-icon');
+  } else if (path.endsWith('.png')) {
+    c.header('Content-Type', 'image/png');
+  } else if (path.endsWith('.jpg') || path.endsWith('.jpeg')) {
+    c.header('Content-Type', 'image/jpeg');
+  } else if (path.endsWith('.gif')) {
+    c.header('Content-Type', 'image/gif');
+  } else if (path.endsWith('.svg')) {
+    c.header('Content-Type', 'image/svg+xml');
+  } else if (path.endsWith('.webp')) {
+    c.header('Content-Type', 'image/webp');
+  }
 });
 
 // 处理 OPTIONS 请求
@@ -252,32 +268,4 @@ app.route('/api', api);
 app.use('/*', serveStatic({ root: './public' }));
 
 // 导出处理函数
-export default app;
-
-// 根据文件扩展名获取正确的 Content-Type
-function getContentType(filePath) {
-  const ext = filePath.split('.').pop().toLowerCase();
-  const mimeTypes = {
-    'css': 'text/css',
-    'js': 'application/javascript',
-    'html': 'text/html',
-    'ico': 'image/x-icon',
-    'png': 'image/png',
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'gif': 'image/gif',
-    'svg': 'image/svg+xml',
-    'webp': 'image/webp',
-    'json': 'application/json',
-    'txt': 'text/plain',
-    'pdf': 'application/pdf',
-    'xml': 'application/xml',
-    'zip': 'application/zip',
-    'mp4': 'video/mp4',
-    'webm': 'video/webm',
-    'mp3': 'audio/mpeg',
-    'wav': 'audio/wav'
-  };
-  
-  return mimeTypes[ext] || 'application/octet-stream';
-} 
+export default app; 
