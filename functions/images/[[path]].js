@@ -11,6 +11,19 @@ export async function onRequest(context) {
     path: path
   });
 
+  // 检查是否是导航请求
+  const isNavigation = request.headers.get('sec-fetch-mode') === 'navigate';
+  if (isNavigation) {
+    // 重定向到正确的图片URL
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': `/images/${path}`,
+        'Cache-Control': 'no-cache'
+      }
+    });
+  }
+
   try {
     // 构建资源路径
     const assetPath = `public/images/${path}`;
