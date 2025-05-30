@@ -354,4 +354,28 @@ footer {
     color: #666;
     font-size: 0.9rem;
     border-top: 1px solid var(--border-color);
+}
+
+.file-list {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.confirm-upload-btn {
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+    margin-top: 1rem;
+    width: 100%;
+}
+
+.confirm-upload-btn:hover {
+    background-color: #1976d2;
 } 
