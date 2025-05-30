@@ -3,7 +3,7 @@ import { Octokit } from 'octokit';
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
-  const path = url.pathname.replace('/api/', '');
+  const path = url.pathname.replace('/api/', '').replace(/^\/+|\/+$/g, '');
   
   // 添加 CORS 头
   const corsHeaders = {
@@ -14,6 +14,22 @@ export async function onRequest(context) {
     'Vary': 'Origin'
   };
 
+  // 详细日志
+  console.log('API 请求详情:', {
+    fullUrl: request.url,
+    pathname: url.pathname,
+    path: path,
+    method: request.method,
+    headers: Object.fromEntries(request.headers.entries()),
+    hasDB: !!env.DB,
+    env: {
+      hasGithubToken: !!env.GITHUB_TOKEN,
+      hasGithubOwner: !!env.GITHUB_OWNER,
+      hasGithubRepo: !!env.GITHUB_REPO,
+      hasSiteUrl: !!env.SITE_URL
+    }
+  });
+
   // 处理 OPTIONS 请求
   if (request.method === 'OPTIONS') {
     return new Response(null, {
@@ -21,17 +37,9 @@ export async function onRequest(context) {
     });
   }
 
-  // 记录请求信息
-  console.log('接收到请求:', {
-    path: path,
-    method: request.method,
-    url: request.url,
-    hasDB: !!env.DB
-  });
-
   try {
-    // 处理文件上传
-    if (path === 'upload' && request.method === 'POST') {
+    // 处理文件上传 - 优化路径匹配
+    if (path.toLowerCase() === 'upload' && request.method === 'POST') {
       try {
         console.log('开始处理文件上传');
         const formData = await request.formData();
@@ -139,7 +147,7 @@ export async function onRequest(context) {
     }
 
     // 处理 settings/guest-upload 请求
-    if (path === 'settings/guest-upload') {
+    if (path.toLowerCase() === 'settings/guest-upload') {
       console.log('Entering /settings/guest-upload handler');
       try {
         if (!env.DB) {
@@ -185,6 +193,7 @@ export async function onRequest(context) {
     }
 
     // 如果没有匹配的路由，返回 404
+    console.log('未找到匹配的路由:', path);
     return new Response(JSON.stringify({
       error: 'Not Found',
       message: `API endpoint ${path} not found`
