@@ -152,14 +152,14 @@ export async function onRequest(context) {
         console.log('GitHub 配置:', {
           owner: env.GITHUB_OWNER,
           repo: env.GITHUB_REPO,
-          path: `images/${file.name}`
+          path: `public/images/${file.name}`
         });
 
         try {
           const response = await octokit.rest.repos.createOrUpdateFileContents({
             owner: env.GITHUB_OWNER,
             repo: env.GITHUB_REPO,
-            path: `images/${file.name}`,
+            path: `public/images/${file.name}`,
             message: `Upload ${file.name}`,
             content: base64,
             branch: 'main'
@@ -176,7 +176,7 @@ export async function onRequest(context) {
             file.name,
             file.size,
             file.type,
-            `images/${file.name}`,
+            `public/images/${file.name}`,
             response.data.content.sha
           ).run();
 
@@ -209,7 +209,7 @@ export async function onRequest(context) {
             request: {
               owner: env.GITHUB_OWNER,
               repo: env.GITHUB_REPO,
-              path: `images/${file.name}`
+              path: `public/images/${file.name}`
             }
           });
           
