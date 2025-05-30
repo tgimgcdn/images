@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "include": ["/api/*"],
+  "include": ["/api/*", "/images/*"],
   "exclude": [],
   "routes": [
     {
@@ -8,6 +8,12 @@
       "mountPath": "/api",
       "method": "",
       "module": ["api/[[path]].js:onRequest"]
+    },
+    {
+      "routePath": "/images/:path*",
+      "mountPath": "/images",
+      "method": "",
+      "module": ["[[path]].js:onRequest"]
     }
   ],
   "baseURL": "/"
