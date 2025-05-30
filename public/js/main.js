@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function checkGuestUpload() {
         try {
+            console.log('Checking guest upload settings...');
             const response = await fetch('/api/settings/guest-upload', {
                 method: 'GET',
                 headers: {
@@ -96,17 +97,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 credentials: 'same-origin'
             });
 
+            console.log('Response status:', response.status);
+            console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const contentType = response.headers.get('content-type');
+            console.log('Content-Type:', contentType);
+
             if (!contentType || !contentType.includes('application/json')) {
                 console.error('Invalid content type:', contentType);
+                const text = await response.text();
+                console.error('Response body:', text);
                 throw new Error('Invalid response format');
             }
 
             const data = await response.json();
+            console.log('Response data:', data);
             
             if (!data.success) {
                 throw new Error(data.error || 'Failed to load settings');
