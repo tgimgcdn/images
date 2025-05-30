@@ -16,22 +16,26 @@ export async function onRequest(context) {
   });
 
   try {
-    // 直接从静态资源目录获取图片
-    const response = await serveStatic({
-      root: './public',
-      path: `/images/${path}`
-    })(context);
-
-    console.log('静态文件响应:', {
-      status: response.status,
-      headers: Object.fromEntries(response.headers.entries())
+    // 使用 Cloudflare Workers 的方式获取静态资源
+    const assetKey = `images/${path}`;
+    console.log('尝试获取资源:', assetKey);
+    
+    const asset = await env.ASSETS.fetch(new URL(assetKey, request.url));
+    console.log('资源获取结果:', {
+      status: asset.status,
+      headers: Object.fromEntries(asset.headers.entries())
     });
 
-    if (response.status === 200) {
+    if (asset.status === 200) {
       // 添加缓存控制头
-      response.headers.set('Cache-Control', 'public, max-age=31536000');
-      response.headers.set('Access-Control-Allow-Origin', '*');
-      return response;
+      const headers = new Headers(asset.headers);
+      headers.set('Cache-Control', 'public, max-age=31536000');
+      headers.set('Access-Control-Allow-Origin', '*');
+      
+      return new Response(asset.body, {
+        status: 200,
+        headers
+      });
     }
 
     // 如果找不到图片，返回 404
