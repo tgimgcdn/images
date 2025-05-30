@@ -9,6 +9,7 @@
 </head>
 <body>
     <div class="container">
+        <h1 class="site-title">参界图床</h1>
         <div class="upload-container">
             <div id="dropZone" class="drop-zone">
                 <div class="upload-content">
@@ -16,7 +17,7 @@
                     <h2>拖放文件到这里</h2>
                     <p>或者</p>
                     <button id="uploadBtn" class="upload-btn">选择文件</button>
-                    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                    <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
                     <p class="supported-formats">支持的文件类型：JPG、PNG、GIF、WebP、SVG、ICO</p>
                     <p class="file-size-limit">最大文件大小：25MB</p>
                 </div>
@@ -72,6 +73,9 @@
                 </div>
             </div>
         </div>
+        <footer class="site-footer">
+            <p>© 2025 参界图床 | 基于 CloudFlare Pages 和 GitHub</p>
+        </footer>
     </div>
     <div id="toast" class="toast"></div>
     <script src="/js/main.js"></script>
