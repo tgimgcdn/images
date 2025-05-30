@@ -13,7 +13,7 @@
       "routePath": "/images/:path*",
       "mountPath": "/images",
       "method": "",
-      "module": ["[[path]].js:onRequest"]
+      "module": ["images/[[path]].js:onRequest"]
     }
   ],
   "baseURL": "/"
