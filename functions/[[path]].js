@@ -248,8 +248,10 @@ app.use('*', checkGuestUpload);
 // 先挂载 API 路由
 app.route('/api', api);
 
-// 最后处理静态文件
+// 处理静态文件
 app.use('/*', serveStatic({ root: './public' }));
 
 // 导出处理函数
-export const onRequest = app.fetch; 
+export default {
+  fetch: app.fetch
+}; 
