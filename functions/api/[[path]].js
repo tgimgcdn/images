@@ -32,10 +32,12 @@ export async function onRequest(context) {
     // 处理文件上传
     if (path === 'upload' && request.method === 'POST') {
       try {
+        console.log('开始处理文件上传');
         const formData = await request.formData();
         const file = formData.get('file');
         
         if (!file) {
+          console.error('未找到文件');
           return new Response(JSON.stringify({ error: '未找到文件' }), {
             status: 400,
             headers: {
@@ -45,15 +47,29 @@ export async function onRequest(context) {
           });
         }
 
+        console.log('文件信息:', {
+          name: file.name,
+          type: file.type,
+          size: file.size
+        });
+
         // 初始化 Octokit
+        console.log('初始化 Octokit');
         const octokit = new Octokit({
           auth: env.GITHUB_TOKEN
         });
 
         // 上传到 GitHub
+        console.log('开始上传到 GitHub');
         const buffer = await file.arrayBuffer();
         const content = btoa(String.fromCharCode(...new Uint8Array(buffer)));
         
+        console.log('GitHub 配置:', {
+          owner: env.GITHUB_OWNER,
+          repo: env.GITHUB_REPO,
+          path: `images/${file.name}`
+        });
+
         const response = await octokit.rest.repos.createOrUpdateFileContents({
           owner: env.GITHUB_OWNER,
           repo: env.GITHUB_REPO,
@@ -63,7 +79,10 @@ export async function onRequest(context) {
           branch: 'main'
         });
 
+        console.log('GitHub 上传成功:', response.data);
+
         // 保存到数据库
+        console.log('开始保存到数据库');
         await env.DB.prepare(`
           INSERT INTO images (filename, size, mime_type, github_path, sha)
           VALUES (?, ?, ?, ?, ?)
@@ -75,8 +94,12 @@ export async function onRequest(context) {
           response.data.content.sha
         ).run();
 
+        console.log('数据库保存成功');
+
         // 返回各种格式的链接
         const imageUrl = `${env.SITE_URL}/images/${file.name}`;
+        console.log('返回图片链接:', imageUrl);
+
         return new Response(JSON.stringify({
           success: true,
           data: {
@@ -92,7 +115,18 @@ export async function onRequest(context) {
           }
         });
       } catch (error) {
-        console.error('Upload error:', error);
+        console.error('上传错误:', error);
+        console.error('错误详情:', {
+          message: error.message,
+          stack: error.stack,
+          env: {
+            hasGithubToken: !!env.GITHUB_TOKEN,
+            hasGithubOwner: !!env.GITHUB_OWNER,
+            hasGithubRepo: !!env.GITHUB_REPO,
+            hasSiteUrl: !!env.SITE_URL,
+            hasDB: !!env.DB
+          }
+        });
         return new Response(JSON.stringify({ error: '上传失败' }), {
           status: 500,
           headers: {
