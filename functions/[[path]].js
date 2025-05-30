@@ -288,16 +288,10 @@ export async function onRequest(context) {
       console.log('尝试获取静态文件:', filePath);
       
       try {
-        // 尝试直接从 public 目录获取文件
-        const publicUrl = new URL(`/public/${filePath}`, request.url);
-        console.log('尝试获取文件 URL:', publicUrl.toString());
-        
-        const file = await env.ASSETS.fetch(publicUrl);
+        const file = await env.ASSETS.fetch(new URL(`/public/${filePath}`, request.url));
         console.log('文件状态:', file.status);
-        console.log('文件头信息:', Object.fromEntries(file.headers.entries()));
         
         if (file.status === 200) {
-          // 设置正确的 Content-Type
           const contentType = getContentType(filePath);
           console.log('设置 Content-Type:', contentType);
           
@@ -309,48 +303,19 @@ export async function onRequest(context) {
             headers.set(key, value);
           });
           
-          // 获取文件内容
-          const content = await file.arrayBuffer();
-          console.log('文件大小:', content.byteLength);
-          
-          return new Response(content, {
+          return new Response(file.body, {
             status: 200,
             headers: headers
-          });
-        } else {
-          console.error('文件不存在:', filePath);
-          return new Response(JSON.stringify({
-            error: 'File not found',
-            message: `Static file ${filePath} not found`
-          }), {
-            status: 404,
-            headers: {
-              'Content-Type': 'application/json',
-              ...corsHeaders
-            }
           });
         }
       } catch (error) {
         console.error('获取静态文件失败:', error);
-        return new Response(JSON.stringify({
-          error: 'Failed to fetch static file',
-          message: error.message
-        }), {
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        });
       }
     }
 
     // 处理根路径请求
     if (path === '/' || path === '/index.html') {
-      console.log('处理根路径请求');
       const file = await env.ASSETS.fetch(new URL('/public/index.html', request.url));
-      console.log('index.html 状态:', file.status);
-      
       if (file.status === 200) {
         const headers = new Headers();
         headers.set('Content-Type', 'text/html');
@@ -363,10 +328,7 @@ export async function onRequest(context) {
 
     // 处理管理后台请求
     if (path.startsWith('/admin/')) {
-      console.log('处理管理后台请求:', path);
       const file = await env.ASSETS.fetch(new URL(`/public${path}`, request.url));
-      console.log('管理后台文件状态:', file.status);
-      
       if (file.status === 200) {
         const headers = new Headers();
         headers.set('Content-Type', 'text/html');
