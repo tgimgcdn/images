@@ -14,7 +14,7 @@ export async function onRequest(context) {
   try {
     // 直接从静态资源目录获取图片
     const response = await serveStatic({
-      root: './'
+      root: './public'
     })(context);
 
     if (response.status === 200) {
