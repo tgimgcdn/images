@@ -1,19 +1,13 @@
 {
   "version": 1,
-  "include": ["/api/*", "/images/*"],
-  "exclude": [],
+  "include": ["/api/*"],
+  "exclude": ["/images/*"],
   "routes": [
     {
       "routePath": "/api/:path*",
       "mountPath": "/api",
       "method": "",
       "module": ["api/[[path]].js:onRequest"]
-    },
-    {
-      "routePath": "/images/:path*",
-      "mountPath": "/images",
-      "method": "",
-      "module": ["images/[[path]].js:onRequest"]
     }
   ],
   "baseURL": "/"
