@@ -52,6 +52,27 @@ export async function onRequest(context) {
       }
 
       try {
+        // 检查游客上传权限
+        console.log('检查游客上传权限');
+        const session = request.headers.get('cookie')?.includes('userId=1') ? { userId: 1 } : null;
+        
+        if (!session) {
+          const setting = await env.DB.prepare(
+            'SELECT value FROM settings WHERE key = ?'
+          ).bind('allow_guest_upload').first();
+          
+          if (!setting || setting.value !== 'true') {
+            console.log('游客上传已禁用');
+            return new Response(JSON.stringify({ error: '游客上传已禁用' }), {
+              status: 403,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+        }
+
         console.log('开始处理文件上传');
         const formData = await request.formData();
         const file = formData.get('file');
@@ -107,50 +128,66 @@ export async function onRequest(context) {
           path: `images/${file.name}`
         });
 
-        const response = await octokit.rest.repos.createOrUpdateFileContents({
-          owner: env.GITHUB_OWNER,
-          repo: env.GITHUB_REPO,
-          path: `images/${file.name}`,
-          message: `Upload ${file.name}`,
-          content: base64,
-          branch: 'main'
-        });
+        try {
+          const response = await octokit.rest.repos.createOrUpdateFileContents({
+            owner: env.GITHUB_OWNER,
+            repo: env.GITHUB_REPO,
+            path: `images/${file.name}`,
+            message: `Upload ${file.name}`,
+            content: base64,
+            branch: 'main'
+          });
 
-        console.log('GitHub 上传成功:', response.data);
+          console.log('GitHub 上传成功:', response.data);
 
-        // 保存到数据库
-        console.log('开始保存到数据库');
-        await env.DB.prepare(`
-          INSERT INTO images (filename, size, mime_type, github_path, sha)
-          VALUES (?, ?, ?, ?, ?)
-        `).bind(
-          file.name,
-          file.size,
-          file.type,
-          `images/${file.name}`,
-          response.data.content.sha
-        ).run();
+          // 保存到数据库
+          console.log('开始保存到数据库');
+          await env.DB.prepare(`
+            INSERT INTO images (filename, size, mime_type, github_path, sha)
+            VALUES (?, ?, ?, ?, ?)
+          `).bind(
+            file.name,
+            file.size,
+            file.type,
+            `images/${file.name}`,
+            response.data.content.sha
+          ).run();
 
-        console.log('数据库保存成功');
+          console.log('数据库保存成功');
 
-        // 返回各种格式的链接
-        const imageUrl = `${env.SITE_URL}/images/${file.name}`;
-        console.log('返回图片链接:', imageUrl);
+          // 返回各种格式的链接
+          const imageUrl = `${env.SITE_URL}/images/${file.name}`;
+          console.log('返回图片链接:', imageUrl);
 
-        return new Response(JSON.stringify({
-          success: true,
-          data: {
-            url: imageUrl,
-            markdown: `![${file.name}](${imageUrl})`,
-            html: `<img src="${imageUrl}" alt="${file.name}">`,
-            bbcode: `[img]${imageUrl}[/img]`
+          return new Response(JSON.stringify({
+            success: true,
+            data: {
+              url: imageUrl,
+              markdown: `![${file.name}](${imageUrl})`,
+              html: `<img src="${imageUrl}" alt="${file.name}">`,
+              bbcode: `[img]${imageUrl}[/img]`
+            }
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        } catch (error) {
+          console.error('GitHub API 错误:', error);
+          if (error.status === 404) {
+            return new Response(JSON.stringify({ 
+              error: 'GitHub 仓库配置错误，请检查仓库名称和权限设置' 
+            }), {
+              status: 500,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
           }
-        }), {
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        });
+          throw error;
+        }
       } catch (error) {
         console.error('上传错误:', error);
         console.error('错误详情:', {
