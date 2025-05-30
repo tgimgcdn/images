@@ -284,22 +284,56 @@ export async function onRequest(context) {
     // 处理静态文件
     if (path.startsWith('/js/') || path.startsWith('/css/') || path.startsWith('/images/') || path === '/favicon.ico') {
       const filePath = path.substring(1); // 移除开头的斜杠
-      const file = await env.ASSETS.fetch(new URL(filePath, request.url));
+      console.log('尝试获取静态文件:', filePath);
       
-      if (file.status === 200) {
-        // 设置正确的 Content-Type
-        const contentType = getContentType(filePath);
-        const headers = new Headers(file.headers);
-        headers.set('Content-Type', contentType);
+      try {
+        const file = await env.ASSETS.fetch(new URL(filePath, request.url));
+        console.log('文件状态:', file.status);
         
-        // 添加 CORS 头
-        Object.entries(corsHeaders).forEach(([key, value]) => {
-          headers.set(key, value);
-        });
-        
-        return new Response(file.body, {
-          status: 200,
-          headers: headers
+        if (file.status === 200) {
+          // 设置正确的 Content-Type
+          const contentType = getContentType(filePath);
+          console.log('设置 Content-Type:', contentType);
+          
+          const headers = new Headers(file.headers);
+          headers.set('Content-Type', contentType);
+          
+          // 添加 CORS 头
+          Object.entries(corsHeaders).forEach(([key, value]) => {
+            headers.set(key, value);
+          });
+          
+          // 获取文件内容
+          const content = await file.arrayBuffer();
+          
+          return new Response(content, {
+            status: 200,
+            headers: headers
+          });
+        } else {
+          console.error('文件不存在:', filePath);
+          return new Response(JSON.stringify({
+            error: 'File not found',
+            message: `Static file ${filePath} not found`
+          }), {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      } catch (error) {
+        console.error('获取静态文件失败:', error);
+        return new Response(JSON.stringify({
+          error: 'Failed to fetch static file',
+          message: error.message
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
         });
       }
     }
