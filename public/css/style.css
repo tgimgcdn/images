@@ -277,6 +277,48 @@ footer {
     line-height: 1.4;
 }
 
+.file-info-container {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.file-info {
+    flex: 1;
+}
+
+.file-name {
+    font-weight: 500;
+    color: #2c3e50;
+    margin-bottom: 0.25rem;
+}
+
+.file-size {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.start-upload-btn {
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+    margin-left: 1rem;
+}
+
+.start-upload-btn:hover {
+    background-color: #1976d2;
+}
+
 @media (max-width: 768px) {
     .container {
         padding: 1rem;
