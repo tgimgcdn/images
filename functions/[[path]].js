@@ -252,6 +252,82 @@ app.route('/api', api);
 app.use('/*', serveStatic({ root: './public' }));
 
 // 导出处理函数
-export default {
-  fetch: app.fetch
-}; 
+export async function onRequest(context) {
+  const { request, env } = context;
+  const url = new URL(request.url);
+  const path = url.pathname;
+
+  // 添加 CORS 头
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Cookie',
+    'Access-Control-Allow-Credentials': 'true'
+  };
+
+  // 处理 OPTIONS 请求
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: corsHeaders
+    });
+  }
+
+  // 记录请求信息
+  console.log('接收到请求:', {
+    path: path,
+    method: request.method,
+    url: request.url,
+    hasDB: !!env.DB
+  });
+
+  try {
+    // 处理静态文件
+    if (path.startsWith('/js/') || path.startsWith('/css/') || path.startsWith('/images/')) {
+      const filePath = path.substring(1); // 移除开头的斜杠
+      const file = await env.ASSETS.fetch(new URL(filePath, request.url));
+      if (file.status === 200) {
+        return file;
+      }
+    }
+
+    // 处理根路径请求
+    if (path === '/' || path === '/index.html') {
+      const file = await env.ASSETS.fetch(new URL('index.html', request.url));
+      if (file.status === 200) {
+        return file;
+      }
+    }
+
+    // 处理管理后台请求
+    if (path.startsWith('/admin/')) {
+      const file = await env.ASSETS.fetch(new URL(path.substring(1), request.url));
+      if (file.status === 200) {
+        return file;
+      }
+    }
+
+    // 如果没有匹配的路由，返回 404
+    return new Response(JSON.stringify({
+      error: 'Not Found',
+      message: `Path ${path} not found`
+    }), {
+      status: 404,
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
+    });
+  } catch (error) {
+    console.error('Request error:', error);
+    return new Response(JSON.stringify({
+      error: 'Internal Server Error',
+      message: error.message
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
+    });
+  }
+} 
