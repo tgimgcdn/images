@@ -13,7 +13,7 @@
       "routePath": "/admin/:path*",
       "mountPath": "/admin",
       "method": "",
-      "module": ["[[path]].js:onRequest"]
+      "module": ["admin/[[path]].js:onRequest"]
     }
   ],
   "baseURL": "/"
