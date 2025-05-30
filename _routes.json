@@ -4,32 +4,36 @@
   "exclude": ["/assets/*", "/images/*"],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/functions/[[path]].js"
+      "pattern": "/api/*",
+      "script": "functions/[[path]].js"
     },
     {
-      "src": "/admin/(.*)",
-      "dest": "/functions/[[path]].js"
+      "pattern": "/admin/*",
+      "script": "functions/[[path]].js"
     },
     {
-      "src": "/js/(.*)",
+      "pattern": "/js/*",
+      "static": true,
       "dest": "/public/js/$1"
     },
     {
-      "src": "/css/(.*)",
+      "pattern": "/css/*",
+      "static": true,
       "dest": "/public/css/$1"
     },
     {
-      "src": "/admin/login.html",
+      "pattern": "/admin/login.html",
+      "static": true,
       "dest": "/public/admin/login.html"
     },
     {
-      "src": "/",
+      "pattern": "/",
+      "static": true,
       "dest": "/public/index.html"
     },
     {
-      "src": "/(.*)",
-      "dest": "/functions/[[path]].js"
+      "pattern": "/*",
+      "script": "functions/[[path]].js"
     }
   ]
 } 
