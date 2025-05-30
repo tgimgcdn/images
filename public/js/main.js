@@ -94,7 +94,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function checkGuestUpload() {
         try {
             console.log('Checking guest upload settings...');
-            const response = await fetch('/api/settings/guest-upload', {
+            const baseUrl = window.location.origin;
+            const response = await fetch(`${baseUrl}/api/settings/guest-upload`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json'
@@ -174,7 +175,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const startTime = Date.now();
         
         return new Promise((resolve, reject) => {
-            xhr.open('POST', '/api/upload');
+            const baseUrl = window.location.origin;
+            xhr.open('POST', `${baseUrl}/api/upload`);
             xhr.setRequestHeader('Accept', 'application/json');
             
             xhr.onload = () => {
