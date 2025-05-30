@@ -288,6 +288,7 @@ export async function onRequest(context) {
       console.log('尝试获取静态文件:', filePath);
       
       try {
+        // 直接从 public 目录获取文件
         const file = await env.ASSETS.fetch(new URL(`/public/${filePath}`, request.url));
         console.log('文件状态:', file.status);
         
@@ -303,7 +304,10 @@ export async function onRequest(context) {
             headers.set(key, value);
           });
           
-          return new Response(file.body, {
+          // 获取文件内容
+          const content = await file.arrayBuffer();
+          
+          return new Response(content, {
             status: 200,
             headers: headers
           });
@@ -315,27 +319,58 @@ export async function onRequest(context) {
 
     // 处理根路径请求
     if (path === '/' || path === '/index.html') {
-      const file = await env.ASSETS.fetch(new URL('/public/index.html', request.url));
-      if (file.status === 200) {
-        const headers = new Headers();
-        headers.set('Content-Type', 'text/html');
-        return new Response(file.body, {
-          status: 200,
-          headers: headers
-        });
+      try {
+        const file = await env.ASSETS.fetch(new URL('/public/index.html', request.url));
+        if (file.status === 200) {
+          const headers = new Headers();
+          headers.set('Content-Type', 'text/html');
+          const content = await file.arrayBuffer();
+          return new Response(content, {
+            status: 200,
+            headers: headers
+          });
+        }
+      } catch (error) {
+        console.error('获取 index.html 失败:', error);
       }
     }
 
     // 处理管理后台请求
-    if (path.startsWith('/admin/')) {
-      const file = await env.ASSETS.fetch(new URL(`/public${path}`, request.url));
-      if (file.status === 200) {
-        const headers = new Headers();
-        headers.set('Content-Type', 'text/html');
-        return new Response(file.body, {
-          status: 200,
-          headers: headers
-        });
+    if (path.startsWith('/admin')) {
+      try {
+        // 如果是 /admin，重定向到 /admin/
+        if (path === '/admin') {
+          return new Response(null, {
+            status: 301,
+            headers: {
+              'Location': '/admin/'
+            }
+          });
+        }
+
+        // 处理管理后台文件
+        let adminPath = path;
+        if (adminPath.endsWith('/')) {
+          adminPath += 'index.html';
+        } else if (!adminPath.includes('.')) {
+          adminPath += '.html';
+        }
+
+        console.log('尝试获取管理后台文件:', adminPath);
+        const file = await env.ASSETS.fetch(new URL(`/public${adminPath}`, request.url));
+        console.log('管理后台文件状态:', file.status);
+
+        if (file.status === 200) {
+          const headers = new Headers();
+          headers.set('Content-Type', 'text/html');
+          const content = await file.arrayBuffer();
+          return new Response(content, {
+            status: 200,
+            headers: headers
+          });
+        }
+      } catch (error) {
+        console.error('获取管理后台文件失败:', error);
       }
     }
 
