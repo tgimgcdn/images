@@ -104,69 +104,6 @@ api.get('/settings', async (c) => {
     }
 });
 
-// 获取图片列表
-api.get('/admin/images', async (c) => {
-    try {
-        if (!c.env?.DB) {
-            return c.json({ error: 'Database not configured' }, 500);
-        }
-
-        const page = parseInt(c.req.query('page') || '1');
-        const limit = parseInt(c.req.query('limit') || '20');
-        const offset = (page - 1) * limit;
-
-        const images = await c.env.DB.prepare(`
-            SELECT * FROM images 
-            ORDER BY created_at DESC 
-            LIMIT ? OFFSET ?
-        `).bind(limit, offset).all();
-
-        const total = await c.env.DB.prepare('SELECT COUNT(*) as count FROM images').first();
-
-        return c.json({
-            success: true,
-            data: {
-                images: images.results,
-                pagination: {
-                    total: total.count,
-                    page,
-                    limit,
-                    totalPages: Math.ceil(total.count / limit)
-                }
-            }
-        });
-    } catch (error) {
-        console.error('Error fetching images:', error);
-        return c.json({
-            success: false,
-            error: 'Failed to fetch images'
-        }, 500);
-    }
-});
-
-// 删除图片
-api.delete('/admin/images/:id', async (c) => {
-    try {
-        if (!c.env?.DB) {
-            return c.json({ error: 'Database not configured' }, 500);
-        }
-
-        const id = c.req.param('id');
-        await c.env.DB.prepare('DELETE FROM images WHERE id = ?').bind(id).run();
-
-        return c.json({
-            success: true,
-            message: 'Image deleted successfully'
-        });
-    } catch (error) {
-        console.error('Error deleting image:', error);
-        return c.json({
-            success: false,
-            error: 'Failed to delete image'
-        }, 500);
-    }
-});
-
 // 健康检查端点
 api.get('/health', (c) => {
     return c.json({
@@ -221,30 +158,6 @@ async function sessionMiddleware(c, next) {
   await next();
 }
 
-// 管理后台访问权限检查
-async function checkAdminAccess(c, next) {
-  // 检查是否是管理后台路径
-  if (c.req.path.startsWith('/admin/')) {
-    // 排除登录页面和登录API
-    if (c.req.path === '/admin/login.html' || c.req.path === '/api/admin/login') {
-      await next();
-      return;
-    }
-
-    // 检查会话
-    const session = c.get('session');
-    if (!session || !session.userId) {
-      // 如果是API请求，返回401
-      if (c.req.path.startsWith('/api/')) {
-        return c.json({ error: '请先登录' }, 401);
-      }
-      // 否则重定向到登录页面
-      return c.redirect('/admin/login.html');
-    }
-  }
-  await next();
-}
-
 // 游客上传检查
 async function checkGuestUpload(c, next) {
   if (c.req.path === '/api/upload' && c.req.method === 'POST' && c.env?.DB) {
@@ -269,7 +182,6 @@ async function checkGuestUpload(c, next) {
 
 // 应用通用中间件
 app.use('*', sessionMiddleware);
-app.use('*', checkAdminAccess);
 app.use('*', checkGuestUpload);
 
 // 先挂载 API 路由
