@@ -73,6 +73,18 @@ export async function onRequest(context) {
           size: file.size
         });
 
+        // 检查文件大小
+        const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+        if (file.size > MAX_FILE_SIZE) {
+          return new Response(JSON.stringify({ error: '文件大小超过限制 (最大 25MB)' }), {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
         // 初始化 Octokit
         console.log('初始化 Octokit');
         const octokit = new Octokit({
@@ -82,7 +94,12 @@ export async function onRequest(context) {
         // 上传到 GitHub
         console.log('开始上传到 GitHub');
         const buffer = await file.arrayBuffer();
-        const content = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        
+        // 使用更高效的方式将 ArrayBuffer 转换为 base64
+        const base64 = btoa(
+          new Uint8Array(buffer)
+            .reduce((data, byte) => data + String.fromCharCode(byte), '')
+        );
         
         console.log('GitHub 配置:', {
           owner: env.GITHUB_OWNER,
@@ -95,7 +112,7 @@ export async function onRequest(context) {
           repo: env.GITHUB_REPO,
           path: `images/${file.name}`,
           message: `Upload ${file.name}`,
-          content: content,
+          content: base64,
           branch: 'main'
         });
 
