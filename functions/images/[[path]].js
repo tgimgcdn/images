@@ -18,14 +18,8 @@ export async function onRequest(context) {
   try {
     // 使用 serveStatic 处理静态文件
     const response = await serveStatic({
-      root: './',
-      rewriteRequestPath: (path) => {
-        console.log('重写路径:', {
-          originalPath: path,
-          newPath: `public/images/${path}`
-        });
-        return `public/images/${path}`;
-      }
+      root: './public',
+      path: `/images/${path}`
     })(context);
 
     console.log('静态文件响应:', {
