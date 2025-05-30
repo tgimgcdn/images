@@ -10,17 +10,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const toast = document.getElementById('toast');
     const uploadContainer = document.querySelector('.upload-container');
 
+    // 存储待上传的文件
+    let pendingFiles = [];
+
     // 初始化文件上传功能
     function initUpload() {
         // 点击上传按钮触发文件选择
         uploadBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // 阻止事件冒泡
+            e.stopPropagation();
             fileInput.click();
         });
 
         // 点击上传区域触发文件选择
         dropZone.addEventListener('click', (e) => {
-            // 如果点击的是上传按钮，不触发文件选择
             if (e.target === uploadBtn || uploadBtn.contains(e.target)) {
                 return;
             }
@@ -72,43 +74,48 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 处理文件
     function handleFiles(files) {
-        for (const file of files) {
+        // 清空之前的文件列表
+        const existingFileList = document.querySelector('.file-list');
+        if (existingFileList) {
+            existingFileList.remove();
+        }
+
+        // 创建文件列表容器
+        const fileList = document.createElement('div');
+        fileList.className = 'file-list';
+        
+        // 存储待上传的文件
+        pendingFiles = Array.from(files);
+
+        // 显示每个文件的信息
+        pendingFiles.forEach(file => {
             if (!file.type.startsWith('image/')) {
                 showToast('只支持上传图片文件');
-                continue;
+                return;
             }
 
-            // 显示文件信息
-            showFileInfo(file);
-        }
-    }
+            const fileInfo = document.createElement('div');
+            fileInfo.className = 'file-info-container';
+            fileInfo.innerHTML = `
+                <div class="file-info">
+                    <div class="file-name">${file.name}</div>
+                    <div class="file-size">${formatFileSize(file.size)}</div>
+                </div>
+            `;
+            fileList.appendChild(fileInfo);
+        });
 
-    // 显示文件信息
-    function showFileInfo(file) {
-        // 创建文件信息容器
-        const fileInfoContainer = document.createElement('div');
-        fileInfoContainer.className = 'file-info-container';
-        
-        // 格式化文件大小
-        const fileSize = formatFileSize(file.size);
-        
-        // 创建文件信息HTML
-        fileInfoContainer.innerHTML = `
-            <div class="file-info">
-                <div class="file-name">${file.name}</div>
-                <div class="file-size">${fileSize}</div>
-            </div>
-            <button class="start-upload-btn">开始上传</button>
-        `;
+        // 添加确认上传按钮
+        const confirmUploadBtn = document.createElement('button');
+        confirmUploadBtn.className = 'confirm-upload-btn';
+        confirmUploadBtn.textContent = '确认上传';
+        confirmUploadBtn.addEventListener('click', () => {
+            uploadFiles(pendingFiles);
+        });
 
         // 添加到上传容器
-        uploadContainer.appendChild(fileInfoContainer);
-
-        // 绑定上传按钮事件
-        const startUploadBtn = fileInfoContainer.querySelector('.start-upload-btn');
-        startUploadBtn.addEventListener('click', () => {
-            uploadFile(file, fileInfoContainer);
-        });
+        uploadContainer.appendChild(fileList);
+        uploadContainer.appendChild(confirmUploadBtn);
     }
 
     // 格式化文件大小
@@ -121,81 +128,59 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 上传文件
-    async function uploadFile(file, fileInfoContainer) {
-        const formData = new FormData();
-        formData.append('file', file);
+    async function uploadFiles(files) {
+        const startTime = Date.now();
+        let uploadedCount = 0;
+        const totalFiles = files.length;
 
-        const xhr = new XMLHttpRequest();
-        
         // 显示进度条
         document.querySelector('.upload-progress').style.display = 'block';
-        
-        xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-                const percent = Math.round((e.loaded / e.total) * 100);
+
+        for (const file of files) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '上传失败');
+                }
+
+                const result = await response.json();
+                uploadedCount++;
+
+                // 更新进度
+                const percent = Math.round((uploadedCount / totalFiles) * 100);
                 progressBar.style.width = percent + '%';
                 progressText.textContent = percent + '%';
-                
+
                 // 计算上传速度
-                const speed = e.loaded / ((Date.now() - startTime) / 1000);
+                const speed = (uploadedCount * file.size) / ((Date.now() - startTime) / 1000);
                 progressSpeed.textContent = formatSpeed(speed);
+
+                // 显示最后一个文件的上传结果
+                if (uploadedCount === totalFiles) {
+                    showResult(result.data);
+                }
+            } catch (error) {
+                showToast(error.message);
             }
-        });
-
-        const startTime = Date.now();
-        
-        try {
-            const baseUrl = window.location.origin;
-            const response = await new Promise((resolve, reject) => {
-                xhr.open('POST', `${baseUrl}/api/upload`);
-                xhr.setRequestHeader('Accept', 'application/json');
-                
-                xhr.onload = () => {
-                    if (xhr.status === 200) {
-                        try {
-                            const contentType = xhr.getResponseHeader('content-type');
-                            if (!contentType || !contentType.includes('application/json')) {
-                                throw new Error('Invalid response format');
-                            }
-                            const response = JSON.parse(xhr.responseText);
-                            resolve(response);
-                        } catch (error) {
-                            reject(new Error('解析响应失败'));
-                        }
-                    } else {
-                        try {
-                            const contentType = xhr.getResponseHeader('content-type');
-                            if (contentType && contentType.includes('application/json')) {
-                                const error = JSON.parse(xhr.responseText);
-                                reject(new Error(error.error || '上传失败'));
-                            } else {
-                                reject(new Error(`上传失败 (${xhr.status})`));
-                            }
-                        } catch (error) {
-                            reject(new Error(`上传失败 (${xhr.status})`));
-                        }
-                    }
-                };
-                
-                xhr.onerror = () => {
-                    reject(new Error('网络错误'));
-                };
-                
-                xhr.send(formData);
-            });
-
-            // 移除文件信息容器
-            fileInfoContainer.remove();
-            
-            // 显示上传结果
-            showResult(response.data);
-        } catch (error) {
-            showToast(error.message);
-        } finally {
-            // 隐藏进度条
-            document.querySelector('.upload-progress').style.display = 'none';
-            progressBar.style.width = '0%';
         }
+
+        // 隐藏进度条
+        document.querySelector('.upload-progress').style.display = 'none';
+        progressBar.style.width = '0%';
+
+        // 清空文件列表和确认按钮
+        const fileList = document.querySelector('.file-list');
+        const confirmBtn = document.querySelector('.confirm-upload-btn');
+        if (fileList) fileList.remove();
+        if (confirmBtn) confirmBtn.remove();
     }
 
     // 显示上传结果
@@ -216,8 +201,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const input = btn.previousElementSibling;
                 input.select();
                 document.execCommand('copy');
-                
-                // 显示复制成功提示
                 showToast('已复制到剪贴板');
             };
         });
@@ -250,9 +233,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function checkGuestUpload() {
         try {
-            console.log('Checking guest upload settings...');
-            const baseUrl = window.location.origin;
-            const response = await fetch(`${baseUrl}/api/settings/guest-upload`, {
+            const response = await fetch('/api/settings/guest-upload', {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json'
@@ -260,32 +241,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 credentials: 'same-origin'
             });
 
-            console.log('Response status:', response.status);
-            console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const contentType = response.headers.get('content-type');
-            console.log('Content-Type:', contentType);
-
             if (!contentType || !contentType.includes('application/json')) {
-                console.error('Invalid content type:', contentType);
-                const text = await response.text();
-                console.error('Response body:', text);
                 throw new Error('Invalid response format');
             }
 
             const data = await response.json();
-            console.log('Response data:', data);
             
             if (!data.success) {
                 throw new Error(data.error || 'Failed to load settings');
             }
             
             if (!data.data.allowGuestUpload) {
-                // 如果禁用游客上传，显示提示信息
                 dropZone.innerHTML = `
                     <div class="upload-content">
                         <i class="fas fa-lock upload-icon"></i>
@@ -299,7 +270,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (retryCount < maxRetries) {
                 retryCount++;
                 const delay = 1000 * retryCount;
-                console.log(`Retrying in ${delay}ms... (Attempt ${retryCount}/${maxRetries})`);
                 setTimeout(checkGuestUpload, delay);
             } else {
                 showToast('加载设置失败，请刷新页面重试');
