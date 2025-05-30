@@ -1,20 +1,12 @@
 {
   "version": 1,
-  "include": ["/_worker", "/*"],
+  "include": ["/_worker"],
   "exclude": [],
   "routes": [
     {
       "routePath": "/_worker",
       "mountPath": "/",
       "module": ["_worker.js:onRequest"]
-    },
-    {
-      "pattern": "/api/*",
-      "script": "_worker.js"
-    },
-    {
-      "pattern": "/admin/*",
-      "script": "_worker.js"
     }
   ]
 } 
