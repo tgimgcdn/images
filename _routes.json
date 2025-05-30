@@ -1,15 +1,19 @@
 {
   "version": 1,
   "include": ["/*"],
-  "exclude": ["/assets/*", "/images/*"],
+  "exclude": [],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/functions/api/[[path]].js"
+      "pattern": "/api/*",
+      "script": "/functions/api/[[path]].js"
     },
     {
-      "src": "/admin/(.*)",
-      "dest": "/functions/[[path]].js"
+      "pattern": "/admin/*",
+      "script": "/functions/[[path]].js"
+    },
+    {
+      "pattern": "/admin",
+      "script": "/functions/[[path]].js"
     },
     {
       "src": "/js/(.*)",
