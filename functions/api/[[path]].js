@@ -1,61 +1,100 @@
-import { Hono } from 'hono';
+export async function onRequest(context) {
+  const { request, env } = context;
+  const url = new URL(request.url);
+  const path = url.pathname.replace('/api/', '');
+  
+  // 添加 CORS 头
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Cookie',
+    'Access-Control-Allow-Credentials': 'true'
+  };
 
-const api = new Hono();
+  // 处理 OPTIONS 请求
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: corsHeaders
+    });
+  }
 
-// 添加 CORS 头
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Cookie',
-  'Access-Control-Allow-Credentials': 'true'
-};
-
-// 确保所有 API 响应都设置正确的 Content-Type
-api.use('*', async (c, next) => {
-  c.header('Content-Type', 'application/json');
-  Object.entries(corsHeaders).forEach(([key, value]) => {
-    c.header(key, value);
+  // 记录请求信息
+  console.log('接收到请求:', {
+    path: path,
+    method: request.method,
+    url: request.url,
+    hasDB: !!env.DB
   });
-  await next();
-});
 
-// 处理 OPTIONS 请求
-api.options('*', (c) => {
-  return new Response(null, {
-    headers: corsHeaders
-  });
-});
-
-// API 路由定义
-api.get('/settings/guest-upload', async (c) => {
-  console.log('Entering /settings/guest-upload handler');
   try {
-    if (!c.env?.DB) {
-      return c.json({ error: 'Database not configured' }, 500);
+    // 处理 settings/guest-upload 请求
+    if (path === 'settings/guest-upload') {
+      console.log('Entering /settings/guest-upload handler');
+      try {
+        if (!env.DB) {
+          return new Response(JSON.stringify({ error: 'Database not configured' }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        const result = await env.DB.prepare('SELECT value FROM settings WHERE key = ?')
+          .bind('allow_guest_upload')
+          .first();
+        
+        console.log('Guest upload setting:', result);
+        
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            allowGuestUpload: result?.value === 'true'
+          }
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } catch (error) {
+        console.error('Error fetching guest upload settings:', error);
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Failed to fetch settings'
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
     }
 
-    const result = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?')
-      .bind('allow_guest_upload')
-      .first();
-    
-    console.log('Guest upload setting:', result);
-    
-    return c.json({
-      success: true,
-      data: {
-        allowGuestUpload: result?.value === 'true'
+    // 如果没有匹配的路由，返回 404
+    return new Response(JSON.stringify({
+      error: 'Not Found',
+      message: `API endpoint ${path} not found`
+    }), {
+      status: 404,
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
       }
     });
   } catch (error) {
-    console.error('Error fetching guest upload settings:', error);
-    return c.json({
-      success: false,
-      error: 'Failed to fetch settings'
-    }, 500);
+    console.error('API request error:', error);
+    return new Response(JSON.stringify({
+      error: 'Internal Server Error',
+      message: error.message
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
+    });
   }
-});
-
-// 导出处理函数
-export default {
-  fetch: api.fetch
-}; 
+} 
