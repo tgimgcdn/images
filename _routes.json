@@ -5,14 +5,14 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/functions/_worker.js",
+      "dest": "/functions/[[path]].js",
       "headers": {
         "Content-Type": "application/json"
       }
     },
     {
       "src": "/admin/(.*)",
-      "dest": "/functions/_worker.js"
+      "dest": "/functions/[[path]].js"
     },
     {
       "src": "/js/(.*)",
