@@ -287,7 +287,8 @@ export async function onRequest(context) {
       console.log('尝试获取静态文件:', filePath);
       
       try {
-        const file = await env.ASSETS.fetch(new URL(filePath, request.url));
+        // 从 public 目录获取文件
+        const file = await env.ASSETS.fetch(new URL(`/public/${filePath}`, request.url));
         console.log('文件状态:', file.status);
         
         if (file.status === 200) {
@@ -340,7 +341,7 @@ export async function onRequest(context) {
 
     // 处理根路径请求
     if (path === '/' || path === '/index.html') {
-      const file = await env.ASSETS.fetch(new URL('index.html', request.url));
+      const file = await env.ASSETS.fetch(new URL('/public/index.html', request.url));
       if (file.status === 200) {
         const headers = new Headers(file.headers);
         headers.set('Content-Type', 'text/html');
@@ -353,7 +354,7 @@ export async function onRequest(context) {
 
     // 处理管理后台请求
     if (path.startsWith('/admin/')) {
-      const file = await env.ASSETS.fetch(new URL(path.substring(1), request.url));
+      const file = await env.ASSETS.fetch(new URL(`/public${path}`, request.url));
       if (file.status === 200) {
         const headers = new Headers(file.headers);
         headers.set('Content-Type', 'text/html');
