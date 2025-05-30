@@ -16,33 +16,35 @@ export async function onRequest(context) {
   });
 
   try {
-    // 使用 Cloudflare Workers 的方式获取静态资源
-    const assetKey = `public/images/${path}`;
-    console.log('尝试获取资源:', assetKey);
-    
-    const asset = await env.ASSETS.fetch(new URL(assetKey, request.url));
-    console.log('资源获取结果:', {
-      status: asset.status,
-      headers: Object.fromEntries(asset.headers.entries())
+    // 使用 serveStatic 处理静态文件
+    const response = await serveStatic({
+      root: './',
+      rewriteRequestPath: (path) => {
+        console.log('重写路径:', {
+          originalPath: path,
+          newPath: `public/images/${path}`
+        });
+        return `public/images/${path}`;
+      }
+    })(context);
+
+    console.log('静态文件响应:', {
+      status: response.status,
+      headers: Object.fromEntries(response.headers.entries())
     });
 
-    if (asset.status === 200) {
+    if (response.status === 200) {
       // 检查内容类型
-      const contentType = asset.headers.get('content-type');
+      const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.startsWith('image/')) {
         console.error('非图片内容类型:', contentType);
         return new Response('Not Found', { status: 404 });
       }
 
       // 添加缓存控制头
-      const headers = new Headers(asset.headers);
-      headers.set('Cache-Control', 'public, max-age=31536000');
-      headers.set('Access-Control-Allow-Origin', '*');
-      
-      return new Response(asset.body, {
-        status: 200,
-        headers
-      });
+      response.headers.set('Cache-Control', 'public, max-age=31536000');
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      return response;
     }
 
     // 如果找不到图片，返回 404
