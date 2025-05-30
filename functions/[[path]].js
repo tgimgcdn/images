@@ -180,8 +180,61 @@ async function checkGuestUpload(c, next) {
   await next();
 }
 
+// 上传安全检查中间件
+async function checkUploadSecurity(c, next) {
+  if (c.req.path === '/api/upload' && c.req.method === 'POST') {
+    try {
+      const formData = await c.req.formData();
+      const file = formData.get('file');
+      
+      if (!file) {
+        return c.json({ error: '未找到文件' }, 400);
+      }
+
+      // 检查文件类型
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon'];
+      if (!allowedTypes.includes(file.type)) {
+        return c.json({ error: '不支持的文件类型' }, 400);
+      }
+
+      // 检查文件大小（25MB）
+      const MAX_FILE_SIZE = 25 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+        return c.json({ error: '文件大小超过限制 (最大 25MB)' }, 400);
+      }
+
+      // 检查文件名
+      const fileName = file.name.toLowerCase();
+      const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico'];
+      const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+      if (!hasValidExtension) {
+        return c.json({ error: '不支持的文件扩展名' }, 400);
+      }
+
+      // 检查文件名长度
+      if (fileName.length > 100) {
+        return c.json({ error: '文件名过长' }, 400);
+      }
+
+      // 检查文件名是否包含特殊字符
+      const invalidChars = /[<>:"/\\|?*\x00-\x1F]/g;
+      if (invalidChars.test(fileName)) {
+        return c.json({ error: '文件名包含非法字符' }, 400);
+      }
+
+      // 将文件信息添加到上下文中，供后续处理使用
+      c.set('uploadFile', file);
+    } catch (error) {
+      console.error('Upload security check error:', error);
+      return c.json({ error: '文件安全检查失败' }, 500);
+    }
+  }
+  await next();
+}
+
 // 应用通用中间件
 app.use('*', sessionMiddleware);
+app.use('*', checkUploadSecurity);
 app.use('*', checkGuestUpload);
 
 // 先挂载 API 路由
