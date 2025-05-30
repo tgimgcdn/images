@@ -8,47 +8,32 @@ export async function onRequest(context) {
   console.log('处理图片请求:', {
     fullUrl: request.url,
     pathname: url.pathname,
-    path: path,
-    env: {
-      hasDB: !!env.DB,
-      hasSiteUrl: !!env.SITE_URL
-    }
+    path: path
   });
 
   try {
-    // 使用 serveStatic 处理静态文件
-    const response = await serveStatic({
-      root: './public',
-      path: `/images/${path}`
-    })(context);
+    // 构建资源路径
+    const assetPath = `public/images/${path}`;
+    console.log('请求资源路径:', assetPath);
 
-    console.log('静态文件响应:', {
-      status: response.status,
-      headers: Object.fromEntries(response.headers.entries())
-    });
-
+    // 从 Pages 的静态资源中获取文件
+    const response = await env.ASSETS.fetch(new Request(new URL(assetPath, request.url)));
+    
     if (response.status === 200) {
-      // 检查内容类型
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.startsWith('image/')) {
-        console.error('非图片内容类型:', contentType);
-        return new Response('Not Found', { status: 404 });
-      }
-
       // 添加缓存控制头
-      response.headers.set('Cache-Control', 'public, max-age=31536000');
-      response.headers.set('Access-Control-Allow-Origin', '*');
-      return response;
+      const headers = new Headers(response.headers);
+      headers.set('Cache-Control', 'public, max-age=31536000');
+      headers.set('Access-Control-Allow-Origin', '*');
+      
+      return new Response(response.body, {
+        status: 200,
+        headers
+      });
     }
 
-    // 如果找不到图片，返回 404
     return new Response('Not Found', { status: 404 });
   } catch (error) {
     console.error('获取图片失败:', error);
-    console.error('错误详情:', {
-      message: error.message,
-      stack: error.stack
-    });
     return new Response('Not Found', { status: 404 });
   }
 } 
