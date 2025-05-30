@@ -223,11 +223,22 @@ async function sessionMiddleware(c, next) {
 
 // 管理后台访问权限检查
 async function checkAdminAccess(c, next) {
-  if (c.req.path.startsWith('/admin/') && 
-      !c.req.path.includes('/admin/login.html') && 
-      !c.req.path.includes('/api/admin/login')) {
+  // 检查是否是管理后台路径
+  if (c.req.path.startsWith('/admin/')) {
+    // 排除登录页面和登录API
+    if (c.req.path === '/admin/login.html' || c.req.path === '/api/admin/login') {
+      await next();
+      return;
+    }
+
+    // 检查会话
     const session = c.get('session');
     if (!session || !session.userId) {
+      // 如果是API请求，返回401
+      if (c.req.path.startsWith('/api/')) {
+        return c.json({ error: '请先登录' }, 401);
+      }
+      // 否则重定向到登录页面
       return c.redirect('/admin/login.html');
     }
   }
