@@ -17,13 +17,22 @@ export async function onRequest(context) {
     console.log('请求资源路径:', assetPath);
 
     // 从 Pages 的静态资源中获取文件
-    const response = await env.ASSETS.fetch(new Request(new URL(assetPath, request.url)));
+    const assetUrl = new URL(assetPath, request.url);
+    const assetRequest = new Request(assetUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'image/*'
+      }
+    });
+    
+    const response = await env.ASSETS.fetch(assetRequest);
     
     if (response.status === 200) {
       // 添加缓存控制头
       const headers = new Headers(response.headers);
       headers.set('Cache-Control', 'public, max-age=31536000');
       headers.set('Access-Control-Allow-Origin', '*');
+      headers.set('Content-Type', response.headers.get('Content-Type') || 'image/jpeg');
       
       return new Response(response.body, {
         status: 200,
