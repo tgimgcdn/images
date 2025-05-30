@@ -39,7 +39,18 @@ export async function onRequest(context) {
 
   try {
     // 处理文件上传 - 优化路径匹配
-    if (path.toLowerCase() === 'upload' && request.method === 'POST') {
+    if (path.toLowerCase() === 'upload') {
+      // 只允许 POST 方法
+      if (request.method !== 'POST') {
+        return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+          status: 405,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+
       try {
         console.log('开始处理文件上传');
         const formData = await request.formData();
