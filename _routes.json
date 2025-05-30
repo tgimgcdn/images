@@ -1,7 +1,6 @@
 {
   "version": 1,
   "include": ["/*"],
-  "exclude": ["/assets/*", "/images/*"],
   "routes": [
     {
       "pattern": "/api/*",
@@ -9,6 +8,22 @@
     },
     {
       "pattern": "/admin/*",
+      "script": "/functions/[[path]].js"
+    },
+    {
+      "pattern": "/js/*",
+      "script": "/functions/[[path]].js"
+    },
+    {
+      "pattern": "/css/*",
+      "script": "/functions/[[path]].js"
+    },
+    {
+      "pattern": "/images/*",
+      "script": "/functions/[[path]].js"
+    },
+    {
+      "pattern": "/favicon.ico",
       "script": "/functions/[[path]].js"
     },
     {
