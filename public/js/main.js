@@ -14,12 +14,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初始化文件上传功能
     function initUpload() {
         // 点击上传按钮触发文件选择
-        uploadBtn.addEventListener('click', () => {
+        uploadBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
             fileInput.click();
         });
 
         // 点击上传区域触发文件选择
-        dropZone.addEventListener('click', () => {
+        dropZone.addEventListener('click', (e) => {
+            // 如果点击的是上传按钮，不触发文件选择
+            if (e.target === uploadBtn || uploadBtn.contains(e.target)) {
+                return;
+            }
             fileInput.click();
         });
 
