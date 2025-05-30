@@ -112,6 +112,33 @@ export async function onRequest(context) {
           auth: env.GITHUB_TOKEN
         });
 
+        // 验证 GitHub 配置
+        console.log('验证 GitHub 配置');
+        try {
+          const repoInfo = await octokit.rest.repos.get({
+            owner: env.GITHUB_OWNER,
+            repo: env.GITHUB_REPO
+          });
+          console.log('仓库信息:', {
+            name: repoInfo.data.name,
+            full_name: repoInfo.data.full_name,
+            private: repoInfo.data.private,
+            permissions: repoInfo.data.permissions
+          });
+        } catch (error) {
+          console.error('GitHub 仓库验证失败:', error);
+          return new Response(JSON.stringify({ 
+            error: 'GitHub 仓库验证失败，请检查仓库名称和权限设置',
+            details: error.message
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
         // 上传到 GitHub
         console.log('开始上传到 GitHub');
         const buffer = await file.arrayBuffer();
@@ -175,9 +202,21 @@ export async function onRequest(context) {
           });
         } catch (error) {
           console.error('GitHub API 错误:', error);
+          console.error('错误详情:', {
+            status: error.status,
+            message: error.message,
+            response: error.response?.data,
+            request: {
+              owner: env.GITHUB_OWNER,
+              repo: env.GITHUB_REPO,
+              path: `images/${file.name}`
+            }
+          });
+          
           if (error.status === 404) {
             return new Response(JSON.stringify({ 
-              error: 'GitHub 仓库配置错误，请检查仓库名称和权限设置' 
+              error: 'GitHub 仓库配置错误，请检查仓库名称和权限设置',
+              details: error.message
             }), {
               status: 500,
               headers: {
