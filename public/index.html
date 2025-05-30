@@ -1,105 +1,79 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>图片托管系统</title>
+    <title>参界图床</title>
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>图片托管系统</h1>
-            <nav>
-                <a href="/admin" class="admin-link"><i class="fas fa-cog"></i> 管理后台</a>
-            </nav>
-        </header>
-
-        <main>
-            <div class="upload-container">
-                <div class="upload-area" id="dropZone">
-                    <div class="upload-content">
-                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
-                        <h2>拖放文件到这里</h2>
-                        <p>或者</p>
-                        <button class="upload-btn" id="uploadBtn">选择文件</button>
-                        <p class="upload-hint">支持 Ctrl+V 粘贴图片</p>
-                        <p class="upload-hint">支持 jpg、png、gif、webp 格式</p>
-                    </div>
-                    <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+        <div class="upload-container">
+            <div id="dropZone" class="drop-zone">
+                <div class="upload-content">
+                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                    <h2>拖放文件到这里</h2>
+                    <p>或者</p>
+                    <button id="uploadBtn" class="upload-btn">选择文件</button>
+                    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                    <p class="supported-formats">支持的文件类型：JPG、PNG、GIF、WebP、SVG、ICO</p>
+                    <p class="file-size-limit">最大文件大小：25MB</p>
                 </div>
-
-                <div class="upload-progress" style="display: none;">
-                    <div class="progress-info">
-                        <span class="progress-text">0%</span>
-                        <span class="progress-speed">0 KB/s</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill"></div>
-                    </div>
-                </div>
-
-                <div class="upload-list" id="uploadList"></div>
             </div>
-
-            <div class="result-container" style="display: none;">
-                <div class="result-header">
-                    <h2><i class="fas fa-check-circle"></i> 上传成功</h2>
-                    <button class="close-btn" id="closeResult"><i class="fas fa-times"></i></button>
+            <div class="upload-progress" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
                 </div>
-                
-                <div class="preview-container">
-                    <img src="" alt="预览图" class="preview-image">
+                <div class="progress-info">
+                    <span class="progress-text">0%</span>
+                    <span class="progress-speed">0 B/s</span>
                 </div>
+            </div>
+        </div>
 
-                <div class="result-links">
-                    <div class="link-item">
-                        <label><i class="fas fa-link"></i> 图片链接</label>
-                        <div class="link-content">
-                            <input type="text" readonly class="link-input">
-                            <button class="copy-btn" data-type="url" data-tooltip="复制链接">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                        </div>
+        <div class="result-container" style="display: none;">
+            <div class="result-header">
+                <h3>上传成功</h3>
+                <button id="closeResult" class="close-btn">&times;</button>
+            </div>
+            <div class="result-content">
+                <div class="deploy-notice">
+                    <i class="fas fa-info-circle"></i>
+                    <p>因CloudFlare Pages部署需要时间，请您耐心等待1-2分钟，待Pages部署完毕，图片即可显示。</p>
+                </div>
+                <div class="link-group">
+                    <label>直接链接：</label>
+                    <div class="input-group">
+                        <input type="text" class="link-input" readonly>
+                        <button class="copy-btn" data-type="url">复制</button>
                     </div>
-                    <div class="link-item">
-                        <label><i class="fab fa-markdown"></i> Markdown</label>
-                        <div class="link-content">
-                            <input type="text" readonly class="link-input">
-                            <button class="copy-btn" data-type="markdown" data-tooltip="复制 Markdown">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                        </div>
+                </div>
+                <div class="link-group">
+                    <label>Markdown：</label>
+                    <div class="input-group">
+                        <input type="text" class="link-input" readonly>
+                        <button class="copy-btn" data-type="markdown">复制</button>
                     </div>
-                    <div class="link-item">
-                        <label><i class="fab fa-html5"></i> HTML</label>
-                        <div class="link-content">
-                            <input type="text" readonly class="link-input">
-                            <button class="copy-btn" data-type="html" data-tooltip="复制 HTML">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                        </div>
+                </div>
+                <div class="link-group">
+                    <label>HTML：</label>
+                    <div class="input-group">
+                        <input type="text" class="link-input" readonly>
+                        <button class="copy-btn" data-type="html">复制</button>
                     </div>
-                    <div class="link-item">
-                        <label><i class="fas fa-code"></i> BBCode</label>
-                        <div class="link-content">
-                            <input type="text" readonly class="link-input">
-                            <button class="copy-btn" data-type="bbcode" data-tooltip="复制 BBCode">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                        </div>
+                </div>
+                <div class="link-group">
+                    <label>BBCode：</label>
+                    <div class="input-group">
+                        <input type="text" class="link-input" readonly>
+                        <button class="copy-btn" data-type="bbcode">复制</button>
                     </div>
                 </div>
             </div>
-        </main>
-
-        <footer>
-            <p>© 2024 图片托管系统 | 基于 CloudFlare Pages 和 GitHub</p>
-        </footer>
+        </div>
     </div>
-
-    <div class="toast" id="toast"></div>
+    <div id="toast" class="toast"></div>
     <script src="/js/main.js"></script>
 </body>
 </html> 
