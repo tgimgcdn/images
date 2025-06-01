@@ -1119,27 +1119,65 @@ function createImageCard(image) {
             }
         });
         
+        // 先显示菜单，然后再检查位置
+        dropdownMenu.classList.toggle('show');
+        
         // 确保下拉菜单完全可见
-        // 检查是否在右侧有足够空间，如果没有则向左打开
         setTimeout(() => {
-            const rect = dropdownMenu.getBoundingClientRect();
-            if (rect.right > window.innerWidth) {
-                dropdownMenu.style.left = 'auto';
-                dropdownMenu.style.right = '0';
-            } else {
-                dropdownMenu.style.left = '0';
-                dropdownMenu.style.right = 'auto';
-            }
-            
-            // 检查是否在底部有足够空间，如果没有则向上打开
-            if (rect.bottom > window.innerHeight) {
-                dropdownMenu.style.top = 'auto';
-                dropdownMenu.style.bottom = '100%';
+            // 确保菜单先显示出来再获取尺寸
+            if (dropdownMenu.classList.contains('show')) {
+                const rect = dropdownMenu.getBoundingClientRect();
+                const toggleRect = dropdownToggle.getBoundingClientRect();
+                const windowHeight = window.innerHeight;
+                const windowWidth = window.innerWidth;
+
+                // 检查是否有足够的垂直空间 - 优先尝试向下显示，如果空间不足再向上
+                const spaceBelow = windowHeight - toggleRect.bottom;
+                const spaceAbove = toggleRect.top;
+                const menuHeight = rect.height;
+                
+                // 重置所有定位，以避免之前的设置影响
+                dropdownMenu.style.top = '';
+                dropdownMenu.style.bottom = '';
+                dropdownMenu.style.left = '';
+                dropdownMenu.style.right = '';
+                
+                // 垂直方向: 检查下方空间，如果不足则向上显示
+                if (spaceBelow < menuHeight && spaceAbove > menuHeight) {
+                    // 向上显示
+                    dropdownMenu.style.top = 'auto';
+                    dropdownMenu.style.bottom = '100%';
+                } else {
+                    // 向下显示(默认)
+                    dropdownMenu.style.top = '100%';
+                    dropdownMenu.style.bottom = 'auto';
+                }
+                
+                // 水平方向: 检查右侧空间，如果不足则向左显示
+                const menuWidth = rect.width;
+                if (toggleRect.left + menuWidth > windowWidth) {
+                    // 向左显示
+                    dropdownMenu.style.left = 'auto';
+                    dropdownMenu.style.right = '0';
+                } else {
+                    // 向右显示(默认)
+                    dropdownMenu.style.left = '0';
+                    dropdownMenu.style.right = 'auto';
+                }
+                
+                // 确保菜单在视图范围内
+                const updatedRect = dropdownMenu.getBoundingClientRect();
+                if (updatedRect.right > windowWidth) {
+                    const rightOverflow = updatedRect.right - windowWidth;
+                    dropdownMenu.style.left = `-${rightOverflow}px`;
+                }
+                
+                if (updatedRect.bottom > windowHeight) {
+                    const bottomOverflow = updatedRect.bottom - windowHeight;
+                    dropdownMenu.style.top = `calc(100% - ${bottomOverflow}px)`;
+                }
             }
         }, 0);
-        
-        // 切换当前下拉菜单
-        dropdownMenu.classList.toggle('show');
     });
     
     // 点击下拉菜单项复制对应格式的链接
