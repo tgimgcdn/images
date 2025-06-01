@@ -221,6 +221,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 previewImg.style.cursor = currentZoom > 1.2 ? 'grab' : 'default';
             }
         }, { passive: false });
+
+        // 添加全局下拉菜单容器 - 这将用于所有下拉菜单
+        const globalDropdownContainer = document.createElement('div');
+        globalDropdownContainer.className = 'global-dropdown-container';
+        document.body.appendChild(globalDropdownContainer);
+
+        // 点击页面其他地方关闭所有下拉菜单
+        document.addEventListener('click', function(e) {
+            // 如果点击的不是下拉菜单触发器，则关闭所有下拉菜单
+            if (!e.target.closest('.dropdown-toggle')) {
+                closeAllDropdowns();
+            }
+        });
     } catch (error) {
         console.error('初始化页面时出错:', error);
     }
@@ -660,48 +673,50 @@ function initBatchOperations() {
         e.stopPropagation();
         e.preventDefault();
         
-        // 关闭所有其他下拉菜单
-        document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
-            if (menu !== batchCopyMenu) {
-                menu.classList.remove('show');
-            }
+        // 如果当前按钮已经激活，则关闭菜单并返回
+        if (batchCopyButton.classList.contains('active')) {
+            closeAllDropdowns();
+            return;
+        }
+        
+        // 先关闭所有已打开的下拉菜单
+        closeAllDropdowns();
+        
+        // 获取选中的图片
+        const checkedBoxes = document.querySelectorAll('.image-checkbox:checked');
+        const selectedImages = [];
+        
+        // 获取所有选中图片信息
+        checkedBoxes.forEach(checkbox => {
+            const card = checkbox.closest('.image-card');
+            const id = checkbox.dataset.id;
+            
+            // 找到卡片中的URL和文件名
+            const urlItem = card.querySelector('.dropdown-item[data-format="url"]');
+            const url = urlItem ? urlItem.dataset.url : '';
+            const filename = card.querySelector('.image-filename').getAttribute('title');
+            
+            selectedImages.push({ id, url, filename });
         });
         
-        // 切换当前下拉菜单
-        batchCopyMenu.classList.toggle('show');
-    });
-    
-    // 点击下拉菜单项复制对应格式的链接
-    batchCopyMenu.querySelectorAll('.dropdown-item').forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const format = this.dataset.format;
-            const checkedBoxes = document.querySelectorAll('.image-checkbox:checked');
-            const selectedImages = [];
-            
-            // 获取所有选中图片信息
-            checkedBoxes.forEach(checkbox => {
-                const card = checkbox.closest('.image-card');
-                const id = checkbox.dataset.id;
-                
-                // 找到卡片中的URL和文件名
-                const copyBtn = card.querySelector('.btn-copy');
-                const filename = card.querySelector('.image-filename').getAttribute('title');
-                
-                // 获取URL (从下拉菜单项)
-                const urlItem = card.querySelector('.dropdown-item[data-format="url"]');
-                const url = urlItem ? urlItem.dataset.url : '';
-                
-                selectedImages.push({ id, url, filename });
-            });
-            
-            if (selectedImages.length === 0) {
-                showNotification('请选择要复制的图片', 'warning');
-                return;
-            }
-            
+        if (selectedImages.length === 0) {
+            showNotification('请选择要复制的图片', 'warning');
+            return;
+        }
+        
+        // 标记当前按钮为激活状态
+        batchCopyButton.classList.add('active');
+        
+        // 创建下拉菜单项
+        const menuItems = [
+            { label: '复制URL', format: 'url' },
+            { label: '复制Markdown', format: 'markdown' },
+            { label: '复制BBCode', format: 'bbcode' },
+            { label: '复制HTML', format: 'html' }
+        ];
+        
+        // 显示全局下拉菜单
+        showGlobalDropdown(menuItems, batchCopyButton, (format) => {
             // 根据格式生成复制内容，每个链接一行
             let copyText = '';
             selectedImages.forEach(img => {
@@ -727,7 +742,7 @@ function initBatchOperations() {
             navigator.clipboard.writeText(copyText)
                 .then(() => {
                     showNotification(`已复制${selectedImages.length}张图片的${format.toUpperCase()}格式链接`, 'success');
-                    batchCopyMenu.classList.remove('show');
+                    closeAllDropdowns();
                 })
                 .catch(err => {
                     showNotification('复制失败: ' + err, 'error');
@@ -753,11 +768,9 @@ function updateBatchButtonsState() {
 
 // 点击页面其他地方关闭所有下拉菜单
 document.addEventListener('click', function(e) {
-    // 如果点击的不是下拉菜单或其子元素，则关闭所有下拉菜单
-    if (!e.target.closest('.dropdown')) {
-        document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
-            menu.classList.remove('show');
-        });
+    // 如果点击的不是下拉菜单触发器，则关闭所有下拉菜单
+    if (!e.target.closest('.dropdown-toggle')) {
+        closeAllDropdowns();
     }
 });
 
@@ -1105,91 +1118,44 @@ function createImageCard(image) {
     // 复制按钮下拉菜单
     const dropdown = card.querySelector('.dropdown');
     const dropdownToggle = dropdown.querySelector('.dropdown-toggle');
-    const dropdownMenu = dropdown.querySelector('.dropdown-menu');
     
     // 点击按钮显示下拉菜单
     dropdownToggle.addEventListener('click', function(e) {
         e.stopPropagation();
         e.preventDefault();
         
-        // 关闭所有其他下拉菜单
-        document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
-            if (menu !== dropdownMenu) {
-                menu.classList.remove('show');
-            }
+        // 如果当前按钮已经激活，则关闭菜单并返回
+        if (dropdownToggle.classList.contains('active')) {
+            closeAllDropdowns();
+            return;
+        }
+        
+        // 先关闭所有已打开的下拉菜单
+        closeAllDropdowns();
+        
+        // 标记当前按钮为激活状态
+        dropdownToggle.classList.add('active');
+        
+        // 获取下拉菜单内容
+        const menuItems = [];
+        const formats = [
+            { key: 'url', label: 'URL', url: image.url, filename: '' },
+            { key: 'markdown', label: 'Markdown', url: image.url, filename: image.filename },
+            { key: 'bbcode', label: 'BBCode', url: image.url, filename: '' },
+            { key: 'html', label: 'HTML', url: image.url, filename: image.filename }
+        ];
+        
+        formats.forEach(format => {
+            menuItems.push({
+                label: format.label,
+                format: format.key,
+                url: format.url,
+                filename: format.filename
+            });
         });
         
-        // 先显示菜单，然后再检查位置
-        dropdownMenu.classList.toggle('show');
-        
-        // 确保下拉菜单完全可见
-        setTimeout(() => {
-            // 确保菜单先显示出来再获取尺寸
-            if (dropdownMenu.classList.contains('show')) {
-                const rect = dropdownMenu.getBoundingClientRect();
-                const toggleRect = dropdownToggle.getBoundingClientRect();
-                const windowHeight = window.innerHeight;
-                const windowWidth = window.innerWidth;
-
-                // 检查是否有足够的垂直空间 - 优先尝试向下显示，如果空间不足再向上
-                const spaceBelow = windowHeight - toggleRect.bottom;
-                const spaceAbove = toggleRect.top;
-                const menuHeight = rect.height;
-                
-                // 重置所有定位，以避免之前的设置影响
-                dropdownMenu.style.top = '';
-                dropdownMenu.style.bottom = '';
-                dropdownMenu.style.left = '';
-                dropdownMenu.style.right = '';
-                
-                // 垂直方向: 检查下方空间，如果不足则向上显示
-                if (spaceBelow < menuHeight && spaceAbove > menuHeight) {
-                    // 向上显示
-                    dropdownMenu.style.top = 'auto';
-                    dropdownMenu.style.bottom = '100%';
-                } else {
-                    // 向下显示(默认)
-                    dropdownMenu.style.top = '100%';
-                    dropdownMenu.style.bottom = 'auto';
-                }
-                
-                // 水平方向: 检查右侧空间，如果不足则向左显示
-                const menuWidth = rect.width;
-                if (toggleRect.left + menuWidth > windowWidth) {
-                    // 向左显示
-                    dropdownMenu.style.left = 'auto';
-                    dropdownMenu.style.right = '0';
-                } else {
-                    // 向右显示(默认)
-                    dropdownMenu.style.left = '0';
-                    dropdownMenu.style.right = 'auto';
-                }
-                
-                // 确保菜单在视图范围内
-                const updatedRect = dropdownMenu.getBoundingClientRect();
-                if (updatedRect.right > windowWidth) {
-                    const rightOverflow = updatedRect.right - windowWidth;
-                    dropdownMenu.style.left = `-${rightOverflow}px`;
-                }
-                
-                if (updatedRect.bottom > windowHeight) {
-                    const bottomOverflow = updatedRect.bottom - windowHeight;
-                    dropdownMenu.style.top = `calc(100% - ${bottomOverflow}px)`;
-                }
-            }
-        }, 0);
-    });
-    
-    // 点击下拉菜单项复制对应格式的链接
-    dropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const format = this.dataset.format;
-            const url = this.dataset.url;
-            const filename = this.dataset.filename || '';
-            
+        // 显示全局下拉菜单
+        showGlobalDropdown(menuItems, dropdownToggle, (format, url, filename) => {
             let copyText = '';
             switch(format) {
                 case 'url':
@@ -1209,7 +1175,7 @@ function createImageCard(image) {
             navigator.clipboard.writeText(copyText)
                 .then(() => {
                     showNotification(`已复制${format.toUpperCase()}格式链接`, 'success');
-                    dropdownMenu.classList.remove('show');
+                    closeAllDropdowns();
                 })
                 .catch(err => {
                     showNotification('复制失败: ' + err, 'error');
@@ -1278,4 +1244,84 @@ function showToast(message, type = 'info') {
             document.body.removeChild(toast);
         }, 300);
     }, 3000);
+}
+
+// 新增全局函数用于关闭所有下拉菜单
+function closeAllDropdowns() {
+    // 移除全局下拉菜单
+    const globalContainer = document.querySelector('.global-dropdown-container');
+    if (globalContainer) {
+        globalContainer.innerHTML = '';
+    }
+    
+    // 重置所有下拉菜单触发器的激活状态
+    document.querySelectorAll('.dropdown-toggle').forEach(toggle => {
+        toggle.classList.remove('active');
+    });
+}
+
+// 新增函数：显示全局下拉菜单
+function showGlobalDropdown(items, triggerElement, onItemClick) {
+    const globalContainer = document.querySelector('.global-dropdown-container');
+    if (!globalContainer) return;
+    
+    // 创建下拉菜单
+    const menu = document.createElement('div');
+    menu.className = 'dropdown-menu global-dropdown-menu show';
+    
+    // 添加菜单项
+    items.forEach(item => {
+        const menuItem = document.createElement('a');
+        menuItem.href = "#";
+        menuItem.className = 'dropdown-item';
+        menuItem.textContent = item.label;
+        
+        menuItem.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (onItemClick) {
+                onItemClick(item.format, item.url, item.filename);
+            }
+        });
+        
+        menu.appendChild(menuItem);
+    });
+    
+    // 将菜单添加到全局容器
+    globalContainer.appendChild(menu);
+    
+    // 定位菜单
+    positionDropdownMenu(menu, triggerElement);
+}
+
+// 新增函数：定位下拉菜单
+function positionDropdownMenu(menu, triggerElement) {
+    const triggerRect = triggerElement.getBoundingClientRect();
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    
+    // 首先设置菜单位置
+    menu.style.position = 'absolute';
+    menu.style.top = (triggerRect.bottom + scrollTop) + 'px';
+    menu.style.left = (triggerRect.left + scrollLeft) + 'px';
+    
+    // 确保菜单可见
+    setTimeout(() => {
+        const menuRect = menu.getBoundingClientRect();
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        
+        // 检查水平方向
+        if (menuRect.right > windowWidth) {
+            menu.style.left = 'auto';
+            menu.style.right = (windowWidth - triggerRect.right - scrollLeft) + 'px';
+        }
+        
+        // 检查垂直方向
+        if (menuRect.bottom > windowHeight && triggerRect.top > menuRect.height) {
+            // 如果下方空间不足但上方空间足够，则向上显示
+            menu.style.top = 'auto';
+            menu.style.bottom = (windowHeight - triggerRect.top - scrollTop) + 'px';
+        }
+    }, 0);
 } 
