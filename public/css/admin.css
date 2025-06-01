@@ -662,10 +662,39 @@ input:checked + .slider:before {
         grid-template-columns: 1fr;
     }
 
+    /* 修改移动端工具栏布局 - 让排序框和上传按钮在同一行 */
     .toolbar {
-        flex-direction: column;
-        align-items: stretch;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
         gap: 10px;
+    }
+    
+    /* 搜索框独占一行 */
+    .search-box {
+        width: 100%;
+        order: 1;
+        margin-bottom: 10px;
+    }
+    
+    /* 排序框和上传按钮在同一行 */
+    .filter-box {
+        flex: 1;
+        order: 2;
+    }
+    
+    .action-box {
+        flex: 1;
+        order: 3;
+    }
+    
+    .filter-box select {
+        width: 100%;
+    }
+    
+    .action-box .btn {
+        width: 100%;
+        justify-content: center;
     }
     
     /* 修改移动端图片网格布局 */
@@ -676,27 +705,33 @@ input:checked + .slider:before {
     
     /* 调整批量操作按钮在移动端的显示 */
     .batch-operations {
-        flex-direction: column;
-        align-items: flex-start;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
         gap: 10px;
+        margin-bottom: 15px;
     }
     
     .select-all-container {
-        margin-bottom: 8px;
+        margin-right: 10px;
+        margin-bottom: 0;
         font-size: 14px;
         font-weight: 500;
+        flex: 0 0 auto;
     }
     
     .batch-buttons {
-        width: 100%;
         display: flex;
-        justify-content: space-between;
+        gap: 10px;
+        flex: 1;
+        justify-content: flex-start;
     }
     
     .batch-copy-dropdown,
     #batchDeleteBtn {
         flex: 1;
-        max-width: 48%;
+        max-width: calc(50% - 5px);
+        min-width: 0;
     }
     
     /* 确保按钮文本不被截断 */
@@ -706,6 +741,9 @@ input:checked + .slider:before {
         text-overflow: ellipsis;
         padding: 8px 5px;
         font-size: 12px;
+        width: 100%;
+        min-width: 0;
+        justify-content: center;
     }
     
     /* 确保移动端下拉菜单正确显示 */
