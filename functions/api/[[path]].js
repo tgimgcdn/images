@@ -84,6 +84,8 @@ export async function onRequest(context) {
         const data = await request.json();
         const { username, password } = data;
         
+        console.log(`尝试登录: 用户名=${username}, 密码长度=${password ? password.length : 0}`);
+        
         if (!username || !password) {
           return new Response(JSON.stringify({ error: '用户名和密码不能为空' }), {
             status: 400,
@@ -96,6 +98,17 @@ export async function onRequest(context) {
 
         // 查询用户
         console.log('查询用户:', username);
+        if (!env.DB) {
+          console.error('数据库未连接');
+          return new Response(JSON.stringify({ error: '服务器错误: 数据库未连接' }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
         const user = await env.DB.prepare(
           'SELECT * FROM users WHERE username = ?'
         ).bind(username).first();
@@ -142,9 +155,18 @@ export async function onRequest(context) {
         ).run();
         
         // 设置 cookie
-        const cookieHeader = `session_id=${sessionId}; HttpOnly; Secure; SameSite=Strict; Path=/; Expires=${expiresAt.toUTCString()}`;
+        const cookieHeader = `session_id=${sessionId}; HttpOnly; Path=/; Max-Age=${60*60*24*7}; SameSite=Lax`;
         
-        return new Response(JSON.stringify({ success: true }), {
+        console.log('设置Cookie:', cookieHeader);
+        
+        return new Response(JSON.stringify({ 
+          success: true,
+          message: '登录成功',
+          user: {
+            id: user.id,
+            username: user.username
+          }
+        }), {
           headers: {
             'Content-Type': 'application/json',
             'Set-Cookie': cookieHeader,
@@ -153,7 +175,7 @@ export async function onRequest(context) {
         });
       } catch (error) {
         console.error('登录错误:', error);
-        return new Response(JSON.stringify({ error: '登录失败' }), {
+        return new Response(JSON.stringify({ error: '登录失败: ' + error.message }), {
           status: 500,
           headers: {
             'Content-Type': 'application/json',
