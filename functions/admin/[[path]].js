@@ -7,8 +7,8 @@ export async function onRequest(context) {
   
   console.log('管理后台请求:', path);
   
-  // 如果是登录页面，直接返回登录页面
-  if (path === '/admin/login.html') {
+  // 如果是登录页面或登录路径，直接返回
+  if (path === '/admin/login.html' || path === '/admin/login') {
     console.log('访问登录页面，直接放行');
     return next();
   }
