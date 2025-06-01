@@ -1,0 +1,28 @@
+name = "github-to-pages"
+compatibility_date = "2024-01-01"
+
+[site]
+bucket = "./public"
+
+# 启用 NodeJS 兼容性
+compatibility_flags = ["nodejs_compat"]
+
+[build]
+command = "npm run build"
+
+[routes]
+include = ["/api/*", "/admin/*"]
+exclude = ["/images/*"]
+
+[[routes.handlers]]
+paths = ["/api/*"]
+module = "api/[[path]].js:onRequest"
+
+[[routes.handlers]]
+paths = ["/admin/login.html"]
+middleware = false
+static = "public/admin/login.html"
+
+[[routes.handlers]]
+paths = ["/admin/*"]
+module = "admin/[[path]].js:onRequest" 
