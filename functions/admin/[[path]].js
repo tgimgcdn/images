@@ -1,4 +1,4 @@
-import { getCookie } from 'hono/cookie';
+// import { getCookie } from 'hono/cookie';
 
 export async function onRequest(context) {
   const { request, env, next } = context;
@@ -13,8 +13,20 @@ export async function onRequest(context) {
     return next();
   }
   
-  // 检查会话
-  const sessionId = getCookie(request, 'session_id');
+  // 手动解析cookie获取session_id
+  let sessionId = null;
+  const cookieHeader = request.headers.get('Cookie') || '';
+  const cookies = cookieHeader.split(';').map(cookie => cookie.trim());
+  
+  for (const cookie of cookies) {
+    if (cookie.startsWith('session_id=')) {
+      sessionId = cookie.substring('session_id='.length);
+      break;
+    }
+  }
+  
+  console.log('解析的sessionId:', sessionId);
+  
   let isAuthenticated = false;
   
   if (sessionId && env?.DB) {
@@ -47,6 +59,11 @@ export async function onRequest(context) {
   
   // 用户已登录，继续处理请求
   console.log('用户已登录，继续处理请求');
-  return next();
+  try {
+    return next();
+  } catch (error) {
+    console.error('处理请求时出错:', error);
+    return new Response('内部服务器错误: ' + error.message, { status: 500 });
+  }
 } 
 
