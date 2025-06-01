@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 缩放按钮功能
         fullsizePreview.querySelector('.zoom-in').addEventListener('click', function(e) {
             e.stopPropagation();
-            currentZoom = Math.min(5, currentZoom + zoomStep);
+            currentZoom = Math.min(8, currentZoom + zoomStep);
             previewImg.style.transform = `scale(${currentZoom}) translate(${currentTranslate.x / currentZoom}px, ${currentTranslate.y / currentZoom}px)`;
             
             // 放大时启用拖动样式
@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // 根据滚轮方向调整缩放
                 if (e.deltaY < 0) {
-                    currentZoom = Math.min(5, currentZoom + zoomStep); // 限制最大缩放5倍
+                    currentZoom = Math.min(8, currentZoom + zoomStep); // 限制最大缩放8倍
                 } else {
                     currentZoom = Math.max(0.5, currentZoom - zoomStep); // 限制最小缩放0.5倍
                 }
@@ -958,10 +958,20 @@ function createImageCard(image) {
         // 显示预览
         fullsizePreview.classList.add('active');
         
-        // 图片加载完成后获取尺寸
+        // 图片加载完成后获取尺寸并可能调整初始显示大小
         previewImg.onload = function() {
             document.getElementById('img-dimensions').textContent = 
                 `${previewImg.naturalWidth} × ${previewImg.naturalHeight}`;
+            
+            // 检查图片尺寸，对于较大图片可以适当默认放大一些
+            if (previewImg.naturalWidth > window.innerWidth * 1.5 || 
+                previewImg.naturalHeight > window.innerHeight * 1.5) {
+                // 大图不做特殊处理，使用默认缩放
+            } else {
+                // 小图可以适当放大初始显示
+                currentZoom = 1.2;
+                previewImg.style.transform = `scale(${currentZoom})`;
+            }
         };
     });
     
