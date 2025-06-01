@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { getCookie, deleteCookie } from 'hono/cookie';
+import { serveStatic } from 'hono/cloudflare-workers';
 
 const app = new Hono();
 
@@ -31,17 +32,23 @@ async function sessionMiddleware(c, next) {
 
 // 管理后台访问权限检查
 async function checkAdminAccess(c, next) {
-  // 排除登录页面
-  if (c.req.path === '/admin/login.html') {
+  console.log('检查管理后台访问权限:', c.req.path);
+  
+  // 排除登录页面和登录API
+  if (c.req.path === '/admin/login.html' || c.req.path === '/api/admin/login') {
+    console.log('登录页面或API，允许访问');
     await next();
     return;
   }
-
+  
   // 检查会话
   const session = c.get('session');
   if (!session || !session.userId) {
+    console.log('用户未登录，重定向到登录页面');
     return c.redirect('/admin/login.html');
   }
+  
+  console.log('用户已登录，允许访问管理后台');
   await next();
 }
 
@@ -49,10 +56,10 @@ async function checkAdminAccess(c, next) {
 app.use('*', sessionMiddleware);
 app.use('*', checkAdminAccess);
 
-// 处理静态文件
+// 处理静态文件 - 确保所有请求都正确处理
 app.get('*', async (c) => {
-  const path = c.req.path.replace('/admin/', '');
-  return c.redirect(`/admin/${path}`);
+  // 这里不需要再进行路径替换和重定向，直接交给静态文件中间件处理
+  return serveStatic({ root: './public' })(c);
 });
 
 export default app; 
