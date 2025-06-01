@@ -480,10 +480,18 @@ async function initDashboard() {
             // 使用默认值
             document.getElementById('totalImages').textContent = '-';
             document.getElementById('todayUploads').textContent = '-';
+            document.getElementById('totalSize').textContent = '-';
         } else {
             // 更新统计卡片 - 只保留图片总数和今日上传
             document.getElementById('totalImages').textContent = stats.total_images || '0';
             document.getElementById('todayUploads').textContent = stats.today_uploads || '0';
+            
+            // 处理并显示图片总大小，保留2位小数
+            const totalSizeElement = document.getElementById('totalSize');
+            if (totalSizeElement) {
+                const sizeInBytes = stats.total_size || 0;
+                totalSizeElement.textContent = formatFileSize(sizeInBytes, 2);
+            }
         }
     } catch (error) {
         console.error('加载控制面板数据失败:', error);
