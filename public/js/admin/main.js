@@ -1400,15 +1400,53 @@ function initUploadModal() {
         return;
     }
     
+    // 清理上传状态的函数
+    function resetUploadState() {
+        console.log('重置上传状态');
+        // 清除文件输入框值
+        if (fileInput) fileInput.value = '';
+        
+        // 重新显示上传区域
+        if (uploadArea) uploadArea.style.display = 'block';
+        
+        // 清除文件列表和确认按钮
+        const modalBody = modal.querySelector('.modal-body');
+        if (modalBody) {
+            const fileList = modalBody.querySelector('.file-list');
+            const confirmBtn = modalBody.querySelector('.confirm-upload-btn');
+            
+            if (fileList) fileList.remove();
+            if (confirmBtn) confirmBtn.remove();
+        }
+        
+        // 隐藏进度条
+        const uploadProgress = document.querySelector('.upload-progress');
+        if (uploadProgress) uploadProgress.style.display = 'none';
+    }
+    
     // 关闭模态框
-    closeBtn.addEventListener('click', () => {
+    closeBtn.addEventListener('click', (e) => {
+        console.log('点击关闭按钮');
+        e.stopPropagation(); // 阻止事件冒泡
         modal.style.display = 'none';
+        resetUploadState(); // 重置上传状态
     });
     
     // 点击外部关闭
     window.addEventListener('click', (e) => {
         if (e.target === modal) {
+            console.log('点击模态框外部，关闭模态框');
             modal.style.display = 'none';
+            resetUploadState(); // 重置上传状态
+        }
+    });
+    
+    // ESC键关闭模态框
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'block') {
+            console.log('按下ESC键，关闭模态框');
+            modal.style.display = 'none';
+            resetUploadState(); // 重置上传状态
         }
     });
     
@@ -1417,6 +1455,8 @@ function initUploadModal() {
         uploadBtn.addEventListener('click', () => {
             console.log('点击上传按钮，显示模态框');
             modal.style.display = 'block';
+            // 确保每次打开都是干净的状态
+            resetUploadState();
         });
     } else {
         console.error('未找到上传按钮元素');
@@ -1442,6 +1482,7 @@ function initUploadModal() {
     // 点击上传区域触发文件选择
     uploadArea.addEventListener('click', (e) => {
         console.log('点击上传区域，触发文件选择');
+        e.stopPropagation(); // 阻止事件冒泡，防止干扰关闭按钮
         fileInput.click();
     });
     
