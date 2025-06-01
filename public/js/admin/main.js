@@ -1296,14 +1296,13 @@ function showGlobalDropdown(items, triggerElement, onItemClick) {
 
 // 新增函数：定位下拉菜单
 function positionDropdownMenu(menu, triggerElement) {
+    // 获取触发元素的位置信息
     const triggerRect = triggerElement.getBoundingClientRect();
-    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     
-    // 首先设置菜单位置
-    menu.style.position = 'absolute';
-    menu.style.top = (triggerRect.bottom + scrollTop) + 'px';
-    menu.style.left = (triggerRect.left + scrollLeft) + 'px';
+    // 设置菜单初始位置 - 相对于视口
+    menu.style.position = 'fixed'; // 使用fixed而不是absolute，避免滚动问题
+    menu.style.top = triggerRect.bottom + 'px';
+    menu.style.left = triggerRect.left + 'px';
     
     // 确保菜单可见
     setTimeout(() => {
@@ -1311,17 +1310,16 @@ function positionDropdownMenu(menu, triggerElement) {
         const windowWidth = window.innerWidth;
         const windowHeight = window.innerHeight;
         
-        // 检查水平方向
+        // 检查水平方向 - 确保不超出右边界
         if (menuRect.right > windowWidth) {
             menu.style.left = 'auto';
-            menu.style.right = (windowWidth - triggerRect.right - scrollLeft) + 'px';
+            menu.style.right = (windowWidth - triggerRect.right) + 'px';
         }
         
-        // 检查垂直方向
+        // 检查垂直方向 - 如果下方空间不足，则向上显示
         if (menuRect.bottom > windowHeight && triggerRect.top > menuRect.height) {
-            // 如果下方空间不足但上方空间足够，则向上显示
             menu.style.top = 'auto';
-            menu.style.bottom = (windowHeight - triggerRect.top - scrollTop) + 'px';
+            menu.style.bottom = (windowHeight - triggerRect.top) + 'px';
         }
-    }, 0);
+    }, 10); // 稍微延长超时确保DOM更新
 } 
