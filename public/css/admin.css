@@ -841,6 +841,20 @@ input:checked + .slider:before {
     overflow: hidden;
 }
 
+.image-wrapper {
+    position: relative;
+    transform-origin: center;
+    transition: transform 0.1s ease-out;
+}
+
+.image-wrapper.draggable {
+    cursor: grab;
+}
+
+.image-wrapper.draggable:active {
+    cursor: grabbing;
+}
+
 .fullsize-preview img {
     max-width: 90%;
     max-height: 90%;
@@ -848,6 +862,10 @@ input:checked + .slider:before {
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
     transition: transform 0.2s ease;
     transform-origin: center;
+    user-select: none; /* 防止图片被选中 */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .preview-controls {
