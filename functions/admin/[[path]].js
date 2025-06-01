@@ -1,65 +1,52 @@
-import { Hono } from 'hono';
-import { getCookie, deleteCookie } from 'hono/cookie';
-import { serveStatic } from 'hono/cloudflare-workers';
+import { getCookie } from 'hono/cookie';
 
-const app = new Hono();
-
-// 会话管理中间件
-async function sessionMiddleware(c, next) {
-  const sessionId = getCookie(c, 'session_id');
+export async function onRequest(context) {
+  const { request, env, next } = context;
+  const url = new URL(request.url);
+  const path = url.pathname;
   
-  if (sessionId && c.env?.DB) {
+  console.log('管理后台请求:', path);
+  
+  // 如果是登录页面，直接返回登录页面
+  if (path === '/admin/login.html') {
+    console.log('访问登录页面，直接放行');
+    return next();
+  }
+  
+  // 检查会话
+  const sessionId = getCookie(request, 'session_id');
+  let isAuthenticated = false;
+  
+  if (sessionId && env?.DB) {
     try {
-      const session = await c.env.DB.prepare(
+      const session = await env.DB.prepare(
         'SELECT * FROM sessions WHERE id = ? AND expires_at > CURRENT_TIMESTAMP'
       ).bind(sessionId).first();
       
       if (session) {
-        c.set('session', {
-          userId: session.user_id,
-          username: session.username
-        });
+        console.log('用户已登录:', session.username);
+        isAuthenticated = true;
       } else {
-        deleteCookie(c, 'session_id');
+        console.log('会话无效或已过期');
       }
     } catch (error) {
-      console.error('Session error:', error);
-      deleteCookie(c, 'session_id');
+      console.error('检查会话出错:', error);
     }
   }
-  await next();
-}
-
-// 管理后台访问权限检查
-async function checkAdminAccess(c, next) {
-  console.log('检查管理后台访问权限:', c.req.path);
   
-  // 排除登录页面和登录API
-  if (c.req.path === '/admin/login.html' || c.req.path === '/api/admin/login') {
-    console.log('登录页面或API，允许访问');
-    await next();
-    return;
-  }
-  
-  // 检查会话
-  const session = c.get('session');
-  if (!session || !session.userId) {
+  // 如果用户未登录，重定向到登录页面
+  if (!isAuthenticated) {
     console.log('用户未登录，重定向到登录页面');
-    return c.redirect('/admin/login.html');
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': '/admin/login.html'
+      }
+    });
   }
   
-  console.log('用户已登录，允许访问管理后台');
-  await next();
-}
+  // 用户已登录，继续处理请求
+  console.log('用户已登录，继续处理请求');
+  return next();
+} 
 
-// 应用中间件
-app.use('*', sessionMiddleware);
-app.use('*', checkAdminAccess);
-
-// 处理静态文件 - 确保所有请求都正确处理
-app.get('*', async (c) => {
-  // 这里不需要再进行路径替换和重定向，直接交给静态文件中间件处理
-  return serveStatic({ root: './public' })(c);
-});
-
-export default app; 
