@@ -475,6 +475,32 @@ export async function onRequest(context) {
       }
     }
 
+    // 处理 admin/recaptcha-config 请求 - 获取验证码配置
+    if (path.toLowerCase() === 'admin/recaptcha-config') {
+      console.log('获取reCAPTCHA配置');
+      
+      // 检查是否有完整的reCAPTCHA配置（需要同时配置站点密钥和密钥）
+      const recaptchaSiteKey = env.RECAPTCHA_SITE_KEY;
+      const recaptchaSecretKey = env.RECAPTCHA_SECRET_KEY;
+      const recaptchaEnabled = !!(recaptchaSiteKey && recaptchaSecretKey);
+      
+      console.log('reCAPTCHA配置状态:', {
+        enabled: recaptchaEnabled,
+        hasSiteKey: !!recaptchaSiteKey,
+        hasSecretKey: !!recaptchaSecretKey
+      });
+      
+      return new Response(JSON.stringify({
+        enabled: recaptchaEnabled,
+        siteKey: recaptchaEnabled ? recaptchaSiteKey : ''
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      });
+    }
+
     // 如果没有匹配的路由，返回 404
     console.log('未找到匹配的路由:', path);
     return new Response(JSON.stringify({
