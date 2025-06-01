@@ -486,7 +486,22 @@ async function initDashboard() {
             // 更新统计卡片
             document.getElementById('totalImages').textContent = stats.total_images;
             document.getElementById('todayUploads').textContent = stats.today_uploads;
-            document.getElementById('totalViews').textContent = stats.total_views;
+            
+            // 如果总访问量为0，但趋势图中有数据，则从趋势数据中汇总访问量
+            if (stats.total_views === 0) {
+                console.log('总访问量为0，尝试从趋势数据中计算...');
+                const trendData = await safeApiCall('/api/stats/trend');
+                if (!trendData.error && trendData.values && trendData.values.length > 0) {
+                    // 计算趋势数据中的总访问量
+                    const calculatedTotalViews = trendData.values.reduce((sum, count) => sum + count, 0);
+                    document.getElementById('totalViews').textContent = calculatedTotalViews;
+                    console.log(`从趋势数据计算的总访问量: ${calculatedTotalViews}`);
+                } else {
+                    document.getElementById('totalViews').textContent = stats.total_views;
+                }
+            } else {
+                document.getElementById('totalViews').textContent = stats.total_views;
+            }
         }
 
         // 获取访问趋势数据
@@ -563,10 +578,20 @@ function initImageManagement() {
         searchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
-                currentSearch = e.target.value;
+                currentSearch = e.target.value.trim();
                 currentPage = 1;
                 loadImages();
             }, 300);
+        });
+        
+        // 确保回车键也能触发搜索
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                currentSearch = e.target.value.trim();
+                currentPage = 1;
+                loadImages();
+            }
         });
     } else {
         console.warn('未找到搜索输入框');
@@ -965,10 +990,16 @@ async function loadImages(page = 1, search = '') {
     try {
         imageGrid.innerHTML = '<div class="loading-spinner"></div>';
         
+        // 获取当前的搜索关键词
+        const searchInput = document.getElementById('searchInput');
+        search = search || (searchInput ? searchInput.value.trim() : '');
+        
         // 构建API URL
         let url = `/api/images?page=${page}&limit=36`;
         if (search) {
+            // 确保正确编码搜索参数
             url += `&search=${encodeURIComponent(search)}`;
+            console.log(`执行搜索: "${search}"`);
         }
         
         if (currentSort) {
@@ -1011,7 +1042,11 @@ async function loadImages(page = 1, search = '') {
             setupPagination(data.total, data.page, data.total_pages || Math.ceil(data.total / 36));
         } else {
             // 没有图片时显示提示
-            imageGrid.innerHTML = '<div class="no-images">暂无图片</div>';
+            if (search) {
+                imageGrid.innerHTML = `<div class="no-images">没有找到匹配"${search}"的图片</div>`;
+            } else {
+                imageGrid.innerHTML = '<div class="no-images">暂无图片</div>';
+            }
             const paginationContainer = document.getElementById('pagination');
             if (paginationContainer) {
                 paginationContainer.innerHTML = '';
