@@ -61,6 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('初始化系统设置');
     initSettings();
             
+            // 初始化上传模态框
+            console.log('初始化上传模态框');
+            initUploadModal();
+            
             // 添加图片复选框变化事件委托
             document.addEventListener('change', function(e) {
                 if (e.target.classList.contains('image-checkbox')) {
@@ -1375,4 +1379,170 @@ function positionDropdownMenu(menu, triggerElement) {
             }
         }, 10); // 稍微延长超时确保DOM更新
     }
+}
+
+// 上传模态框功能
+function initUploadModal() {
+    console.log('正在初始化上传模态框');
+    const modal = document.getElementById('uploadModal');
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const closeBtn = document.querySelector('.close-btn');
+    const uploadBtn = document.getElementById('uploadBtn');
+    
+    if (!modal || !uploadArea || !fileInput || !closeBtn) {
+        console.error('上传模态框元素不存在:', {
+            modal: !!modal,
+            uploadArea: !!uploadArea,
+            fileInput: !!fileInput,
+            closeBtn: !!closeBtn
+        });
+        return;
+    }
+    
+    // 关闭模态框
+    closeBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    
+    // 点击外部关闭
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+    
+    // 打开模态框
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', () => {
+            console.log('点击上传按钮，显示模态框');
+            modal.style.display = 'block';
+        });
+    } else {
+        console.error('未找到上传按钮元素');
+    }
+    
+    // 拖放上传
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        handleFiles(files);
+    });
+    
+    // 点击上传区域触发文件选择
+    uploadArea.addEventListener('click', (e) => {
+        console.log('点击上传区域，触发文件选择');
+        fileInput.click();
+    });
+    
+    // 文件选择变化
+    fileInput.addEventListener('change', (e) => {
+        console.log('文件输入变化，处理选择的文件');
+        handleFiles(e.target.files);
+    });
+    
+    // 添加粘贴上传功能
+    document.addEventListener('paste', (e) => {
+        // 只有当上传模态框显示时才处理粘贴事件
+        if (modal.style.display === 'block') {
+            console.log('检测到粘贴事件');
+            const items = e.clipboardData.items;
+            const files = [];
+            
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const file = items[i].getAsFile();
+                    console.log('从剪贴板获取到图片:', file.name);
+                    files.push(file);
+                }
+            }
+            
+            if (files.length > 0) {
+                console.log('处理粘贴的图片文件');
+                handleFiles(files);
+            } else {
+                console.log('剪贴板中没有图片文件');
+            }
+        } else {
+            console.log('上传模态框未显示，不处理粘贴事件');
+        }
+    });
+    
+    console.log('上传模态框初始化完成');
+}
+
+// 处理上传文件
+async function handleFiles(files) {
+    console.log('处理上传文件:', files.length, '个文件');
+    const progressBar = document.querySelector('.progress-fill');
+    const progressText = document.querySelector('.progress-text');
+    const progressSpeed = document.querySelector('.progress-speed');
+    const uploadProgress = document.querySelector('.upload-progress');
+    
+    if (!files || files.length === 0) {
+        console.warn('没有选择文件');
+        return;
+    }
+    
+    uploadProgress.style.display = 'block';
+    
+    for (const file of files) {
+        if (!file.type.startsWith('image/')) {
+            showNotification('只能上传图片文件', 'error');
+            continue;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            console.log(`开始上传文件: ${file.name}, 类型: ${file.type}, 大小: ${file.size} 字节`);
+            const startTime = Date.now();
+            
+            // 使用fetch API上传
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('上传失败:', errorData);
+                showNotification(`上传失败: ${errorData.error || '未知错误'}`, 'error');
+                continue;
+            }
+            
+            const result = await response.json();
+            console.log('上传成功:', result);
+            
+            if (result.success) {
+                showNotification(`${file.name} 上传成功`, 'success');
+                // 刷新图片列表
+                loadImages(1);
+                // 更新控制面板统计
+                updateDashboardStats();
+            } else {
+                showNotification(`上传失败: ${result.error || '未知错误'}`, 'error');
+            }
+        } catch (error) {
+            console.error('上传文件失败:', error);
+            showNotification(`上传失败: ${error.message}`, 'error');
+        }
+    }
+    
+    // 隐藏进度条
+    uploadProgress.style.display = 'none';
+    // 重置上传表单
+    document.getElementById('fileInput').value = '';
 } 
