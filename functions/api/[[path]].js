@@ -39,6 +39,9 @@ export async function onRequest(context) {
   }
 
   try {
+    // 添加调试模式检查
+    const isDebugMode = request.headers.get('X-Debug-Mode') === 'true' || url.searchParams.has('debug');
+    
     // 处理管理员登出请求
     if (path.toLowerCase() === 'admin/logout') {
       try {
@@ -330,6 +333,50 @@ export async function onRequest(context) {
           size: file.size
         });
 
+        // 检查文件类型
+        try {
+          console.log('检查文件类型');
+          const allowedTypesSettings = await env.DB.prepare(
+            'SELECT value FROM settings WHERE key = ?'
+          ).bind('allowed_types').first();
+          
+          const allowedTypes = allowedTypesSettings?.value 
+            ? allowedTypesSettings.value.split(',') 
+            : ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon'];
+          
+          console.log('允许的文件类型:', allowedTypes);
+          
+          if (!allowedTypes.includes(file.type)) {
+            console.error('不支持的文件类型:', file.type);
+            return new Response(JSON.stringify({ 
+              error: '不支持的文件类型',
+              allowedTypes: allowedTypes.join(', ')
+            }), {
+              status: 400,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+        } catch (error) {
+          console.error('检查文件类型时出错:', error);
+          // 如果出错，使用默认的类型限制
+          const defaultAllowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon'];
+          if (!defaultAllowedTypes.includes(file.type)) {
+            return new Response(JSON.stringify({ 
+              error: '不支持的文件类型',
+              allowedTypes: defaultAllowedTypes.join(', ')
+            }), {
+              status: 400,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+        }
+
         // 检查文件大小
         const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
         if (file.size > MAX_FILE_SIZE) {
@@ -556,6 +603,566 @@ export async function onRequest(context) {
           ...corsHeaders
         }
       });
+    }
+
+    // 处理 stats/summary 请求 - 获取统计数据摘要
+    if (path.toLowerCase() === 'stats/summary') {
+      console.log('获取统计数据摘要');
+      try {
+        if (!env.DB) {
+          return new Response(JSON.stringify({ error: '数据库未连接' }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        // 获取图片总数
+        const totalImagesQuery = await env.DB.prepare('SELECT COUNT(*) as count FROM images').first();
+        const totalImages = totalImagesQuery ? totalImagesQuery.count : 0;
+
+        // 获取今日上传数量
+        const today = new Date().toISOString().split('T')[0];
+        const todayUploadsQuery = await env.DB.prepare(
+          'SELECT COUNT(*) as count FROM images WHERE DATE(created_at) = ?'
+        ).bind(today).first();
+        const todayUploads = todayUploadsQuery ? todayUploadsQuery.count : 0;
+
+        // 获取总浏览量
+        const totalViewsQuery = await env.DB.prepare('SELECT SUM(views) as total FROM images').first();
+        const totalViews = totalViewsQuery ? (totalViewsQuery.total || 0) : 0;
+
+        // 如果所有值都为0且启用了调试模式，返回模拟数据
+        if (isDebugMode && totalImages === 0 && todayUploads === 0 && totalViews === 0) {
+          console.log('返回模拟统计数据');
+          return new Response(JSON.stringify({
+            total_images: 42,
+            today_uploads: 5,
+            total_views: 1024
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        return new Response(JSON.stringify({
+          total_images: totalImages,
+          today_uploads: todayUploads,
+          total_views: totalViews
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } catch (error) {
+        console.error('获取统计数据摘要失败:', error);
+        
+        // 在出错时，如果启用了调试模式，返回模拟数据
+        if (isDebugMode) {
+          console.log('出错时返回模拟统计数据');
+          return new Response(JSON.stringify({
+            total_images: 42,
+            today_uploads: 5,
+            total_views: 1024
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        return new Response(JSON.stringify({ error: '获取统计数据失败' }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+    }
+
+    // 处理 stats/trend 请求 - 获取访问趋势数据
+    if (path.toLowerCase() === 'stats/trend') {
+      console.log('获取访问趋势数据');
+      try {
+        if (!env.DB) {
+          return new Response(JSON.stringify({ error: '数据库未连接' }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        // 获取过去7天的日期
+        const dates = [];
+        const values = [];
+        const today = new Date();
+        
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(today.getDate() - i);
+          const dateString = date.toISOString().split('T')[0];
+          dates.push(dateString.substring(5)); // 只保留月-日部分
+          
+          // 查询该日的访问量 - 使用daily_stats表
+          const viewsQuery = await env.DB.prepare(
+            'SELECT total_views FROM daily_stats WHERE date = ?'
+          ).bind(dateString).first();
+          
+          const viewCount = viewsQuery ? (viewsQuery.total_views || 0) : 0;
+          values.push(viewCount);
+        }
+
+        // 如果所有值都为0且启用了调试模式，返回模拟数据
+        if (isDebugMode && values.every(v => v === 0)) {
+          console.log('返回模拟趋势数据');
+          return new Response(JSON.stringify({
+            labels: dates,
+            values: [25, 36, 42, 38, 45, 56, 48]
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        return new Response(JSON.stringify({
+          labels: dates,
+          values: values
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } catch (error) {
+        console.error('获取访问趋势数据失败:', error);
+        
+        // 在出错时，如果启用了调试模式，返回模拟数据
+        if (isDebugMode) {
+          console.log('出错时返回模拟趋势数据');
+          const dates = [];
+          const today = new Date();
+          
+          for (let i = 6; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(today.getDate() - i);
+            const dateString = date.toISOString().split('T')[0];
+            dates.push(dateString.substring(5)); // 只保留月-日部分
+          }
+          
+          return new Response(JSON.stringify({
+            labels: dates,
+            values: [25, 36, 42, 38, 45, 56, 48]
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        return new Response(JSON.stringify({ error: '获取趋势数据失败' }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+    }
+
+    // 处理 settings 请求 - 获取系统设置
+    if (path.toLowerCase() === 'settings') {
+      console.log('处理系统设置请求');
+      try {
+        if (!env.DB) {
+          return new Response(JSON.stringify({ error: '数据库未连接' }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        if (request.method === 'GET') {
+          // 获取所有设置
+          const settings = await env.DB.prepare('SELECT key, value FROM settings').all();
+          const settingsObj = {};
+          
+          if (settings && settings.results) {
+            settings.results.forEach(setting => {
+              settingsObj[setting.key] = setting.value;
+            });
+          }
+          
+          // 确保基本设置存在
+          const defaultSettings = {
+            allow_guest_upload: 'false',
+            site_name: '参界图床'
+          };
+          
+          const finalSettings = { ...defaultSettings, ...settingsObj };
+          
+          return new Response(JSON.stringify(finalSettings), {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        } else if (request.method === 'POST') {
+          // 更新设置
+          const data = await request.json();
+          const updates = [];
+          
+          for (const [key, value] of Object.entries(data)) {
+            updates.push(
+              env.DB.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+                .bind(key, String(value))
+                .run()
+            );
+          }
+          
+          await Promise.all(updates);
+          
+          return new Response(JSON.stringify({ success: true }), {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        } else {
+          return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+            status: 405,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      } catch (error) {
+        console.error('处理系统设置请求失败:', error);
+        return new Response(JSON.stringify({ error: '处理设置请求失败' }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+    }
+
+    // 处理 images 请求 - 获取图片列表
+    if (path.toLowerCase() === 'images') {
+      console.log('处理图片列表请求');
+      try {
+        if (!env.DB) {
+          return new Response(JSON.stringify({ error: '数据库未连接' }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        if (request.method === 'GET') {
+          // 获取查询参数
+          const params = new URL(request.url).searchParams;
+          const page = parseInt(params.get('page') || '1');
+          const limit = parseInt(params.get('limit') || '10');
+          const sort = params.get('sort') || 'newest';
+          const search = params.get('search') || '';
+          
+          const offset = (page - 1) * limit;
+          
+          // 构建排序语句
+          let orderBy = '';
+          switch (sort) {
+            case 'oldest':
+              orderBy = 'created_at ASC';
+              break;
+            case 'most_viewed':
+              orderBy = 'views DESC';
+              break;
+            case 'name_asc':
+              orderBy = 'filename ASC';
+              break;
+            case 'name_desc':
+              orderBy = 'filename DESC';
+              break;
+            default:
+              orderBy = 'created_at DESC'; // newest
+          }
+          
+          // 构建查询条件
+          let whereClause = '';
+          let queryParams = [];
+          
+          if (search) {
+            whereClause = 'WHERE filename LIKE ?';
+            queryParams.push(`%${search}%`);
+          }
+          
+          // 查询总记录数
+          const countQuery = `
+            SELECT COUNT(*) as total 
+            FROM images 
+            ${whereClause}
+          `;
+          
+          const totalResult = await env.DB.prepare(countQuery).bind(...queryParams).first();
+          const total = totalResult ? totalResult.total : 0;
+          
+          // 查询分页数据
+          const query = `
+            SELECT id, filename, size, mime_type, github_path, sha, views, created_at 
+            FROM images 
+            ${whereClause}
+            ORDER BY ${orderBy}
+            LIMIT ? OFFSET ?
+          `;
+          
+          queryParams.push(limit, offset);
+          
+          const imagesResult = await env.DB.prepare(query).bind(...queryParams).all();
+          const images = imagesResult ? (imagesResult.results || []) : [];
+          
+          // 处理结果
+          const formattedImages = images.map(img => ({
+            id: img.id,
+            name: img.filename,
+            url: `${env.SITE_URL}/images/${img.filename}`,
+            size: img.size,
+            type: img.mime_type,
+            views: img.views || 0,
+            upload_time: img.created_at
+          }));
+          
+          // 如果没有图片且启用了调试模式，返回模拟数据
+          if (isDebugMode && formattedImages.length === 0) {
+            console.log('返回模拟图片列表数据');
+            const mockImages = [];
+            
+            // 生成一些模拟图片数据
+            for (let i = 1; i <= 10; i++) {
+              const mockDate = new Date();
+              mockDate.setDate(mockDate.getDate() - i);
+              
+              mockImages.push({
+                id: i,
+                name: `sample-image-${i}.jpg`,
+                url: `https://picsum.photos/id/${i + 10}/800/600`,
+                size: 12345 * i,
+                type: 'image/jpeg',
+                views: 100 - i * 5,
+                upload_time: mockDate.toISOString()
+              });
+            }
+            
+            return new Response(JSON.stringify({
+              images: mockImages,
+              total: 25,
+              page: page,
+              limit: limit,
+              total_pages: 3
+            }), {
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+          return new Response(JSON.stringify({
+            images: formattedImages,
+            total: total,
+            page: page,
+            limit: limit,
+            total_pages: Math.ceil(total / limit)
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        } else {
+          return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+            status: 405,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      } catch (error) {
+        console.error('处理图片列表请求失败:', error);
+        
+        // 在出错时，如果启用了调试模式，返回模拟数据
+        if (isDebugMode) {
+          console.log('出错时返回模拟图片列表数据');
+          const mockImages = [];
+          
+          // 生成一些模拟图片数据
+          for (let i = 1; i <= 10; i++) {
+            const mockDate = new Date();
+            mockDate.setDate(mockDate.getDate() - i);
+            
+            mockImages.push({
+              id: i,
+              name: `sample-image-${i}.jpg`,
+              url: `https://picsum.photos/id/${i + 10}/800/600`,
+              size: 12345 * i,
+              type: 'image/jpeg',
+              views: 100 - i * 5,
+              upload_time: mockDate.toISOString()
+            });
+          }
+          
+          return new Response(JSON.stringify({
+            images: mockImages,
+            total: 25,
+            page: 1,
+            limit: 10,
+            total_pages: 3
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        return new Response(JSON.stringify({ error: '获取图片列表失败' }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+    }
+
+    // 处理 images/{id} 请求 - 获取或删除指定图片
+    if (path.match(/^images\/\d+$/i)) {
+      console.log('处理单个图片请求:', path);
+      try {
+        if (!env.DB) {
+          return new Response(JSON.stringify({ error: '数据库未连接' }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        const imageId = path.split('/')[1];
+        console.log('图片ID:', imageId);
+
+        if (request.method === 'DELETE') {
+          // 获取图片信息
+          const image = await env.DB.prepare('SELECT * FROM images WHERE id = ?').bind(imageId).first();
+
+          if (!image) {
+            return new Response(JSON.stringify({ error: '图片不存在' }), {
+              status: 404,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+
+          console.log('要删除的图片信息:', image);
+
+          // 从GitHub删除图片
+          try {
+            const octokit = new Octokit({
+              auth: env.GITHUB_TOKEN
+            });
+
+            await octokit.rest.repos.deleteFile({
+              owner: env.GITHUB_OWNER,
+              repo: env.GITHUB_REPO,
+              path: image.github_path,
+              message: `删除图片 ${image.filename}`,
+              sha: image.sha
+            });
+
+            console.log('从GitHub删除图片成功');
+          } catch (githubError) {
+            console.error('从GitHub删除图片失败:', githubError);
+            // 即使GitHub删除失败，我们仍然从数据库中删除记录
+          }
+
+          // 从数据库删除图片
+          await env.DB.prepare('DELETE FROM images WHERE id = ?').bind(imageId).run();
+          console.log('从数据库删除图片成功');
+
+          return new Response(JSON.stringify({ success: true }), {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        } else if (request.method === 'GET') {
+          // 获取单个图片详情
+          const image = await env.DB.prepare('SELECT * FROM images WHERE id = ?').bind(imageId).first();
+
+          if (!image) {
+            return new Response(JSON.stringify({ error: '图片不存在' }), {
+              status: 404,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+
+          return new Response(JSON.stringify({
+            id: image.id,
+            name: image.filename,
+            url: `${env.SITE_URL}/images/${image.filename}`,
+            size: image.size,
+            type: image.mime_type,
+            views: image.views || 0,
+            upload_time: image.created_at
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        } else {
+          return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+            status: 405,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      } catch (error) {
+        console.error('处理单个图片请求失败:', error);
+        return new Response(JSON.stringify({ error: '处理图片请求失败' }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
     }
 
     // 如果没有匹配的路由，返回 404
