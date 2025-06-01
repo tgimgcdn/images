@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "include": ["/api/*", "/admin/*"],
+  "exclude": ["/images/*"],
+  "routes": [
+    {
+      "routePath": "/api/:path*",
+      "mountPath": "/api",
+      "method": "",
+      "module": ["api/[[path]].js:onRequest"]
+    },
+    {
+      "routePath": "/admin/:path*",
+      "mountPath": "/admin",
+      "method": "",
+      "module": ["admin/[[path]].js:onRequest"]
+    }
+  ],
+  "baseURL": "/"
+} 
