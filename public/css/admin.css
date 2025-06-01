@@ -364,8 +364,15 @@ body {
     border-top: 1px solid #eee;
 }
 
-.image-actions button {
+.image-actions .btn-delete,
+.image-actions .dropdown {
     flex: 1;
+    margin: 0 5px;
+}
+
+.image-actions button,
+.image-actions .dropdown-toggle {
+    width: 100%;
     padding: 6px 8px;
     font-size: 12px;
     border-radius: 4px;
@@ -381,7 +388,6 @@ body {
 .btn-copy {
     background-color: var(--primary-color);
     color: white;
-    margin-right: 5px;
 }
 
 .btn-copy:hover {
@@ -391,7 +397,6 @@ body {
 .btn-delete {
     background-color: var(--danger-color);
     color: white;
-    margin-left: 5px;
 }
 
 .btn-delete:hover {
@@ -1053,7 +1058,7 @@ input:checked + .slider:before {
     position: absolute;
     top: 100%;
     left: 0;
-    z-index: 1000;
+    z-index: 1500;
     display: none;
     min-width: 120px;
     padding: 5px 0;
