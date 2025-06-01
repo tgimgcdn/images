@@ -82,9 +82,9 @@ export async function onRequest(context) {
       try {
         console.log('处理管理员登录请求');
         const data = await request.json();
-        const { username, password } = data;
+        const { username, password, recaptchaResponse } = data;
         
-        console.log(`尝试登录: 用户名=${username}, 密码长度=${password ? password.length : 0}`);
+        console.log(`尝试登录: 用户名=${username}, 密码长度=${password ? password.length : 0}, reCAPTCHA响应长度=${recaptchaResponse ? recaptchaResponse.length : 0}`);
         
         if (!username || !password) {
           return new Response(JSON.stringify({ error: '用户名和密码不能为空' }), {
@@ -94,6 +94,63 @@ export async function onRequest(context) {
               ...corsHeaders
             }
           });
+        }
+
+        // 验证reCAPTCHA
+        const recaptchaSiteKey = env.RECAPTCHA_SITE_KEY;
+        const recaptchaSecretKey = env.RECAPTCHA_SECRET_KEY;
+        const recaptchaEnabled = !!(recaptchaSiteKey && recaptchaSecretKey);
+        
+        if (recaptchaEnabled) {
+          console.log('reCAPTCHA已启用，开始验证');
+          
+          if (!recaptchaResponse) {
+            console.log('reCAPTCHA验证失败: 没有提供响应');
+            return new Response(JSON.stringify({ error: '请完成人机验证' }), {
+              status: 400,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+          try {
+            // 验证reCAPTCHA响应
+            const verifyURL = 'https://recaptcha.net/recaptcha/api/siteverify';
+            const verifyParams = new URLSearchParams({
+              secret: recaptchaSecretKey,
+              response: recaptchaResponse
+            });
+            
+            console.log('正在验证reCAPTCHA响应...');
+            const verifyResponse = await fetch(verifyURL, {
+              method: 'POST',
+              body: verifyParams
+            });
+            
+            const verifyResult = await verifyResponse.json();
+            console.log('reCAPTCHA验证结果:', verifyResult);
+            
+            if (!verifyResult.success) {
+              console.log('reCAPTCHA验证失败');
+              return new Response(JSON.stringify({ error: '人机验证失败，请重试' }), {
+                status: 400,
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...corsHeaders
+                }
+              });
+            }
+            
+            console.log('reCAPTCHA验证成功');
+          } catch (recaptchaError) {
+            console.error('验证reCAPTCHA时出错:', recaptchaError);
+            // 如果我们无法验证reCAPTCHA，暂时允许继续（在生产环境中可能需要更严格的处理）
+            console.log('无法验证reCAPTCHA，但允许继续登录流程');
+          }
+        } else {
+          console.log('reCAPTCHA未启用，跳过验证');
         }
 
         // 查询用户
