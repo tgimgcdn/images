@@ -1,4 +1,6 @@
 import { Octokit } from 'octokit';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -38,6 +40,130 @@ export async function onRequest(context) {
   }
 
   try {
+    // 处理管理员登出请求
+    if (path.toLowerCase() === 'admin/logout') {
+      try {
+        console.log('处理管理员登出请求');
+        
+        // 设置一个已过期的 Cookie 来删除 session_id
+        const cookieHeader = `session_id=; HttpOnly; Secure; SameSite=Strict; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 UTC`;
+        
+        return new Response(JSON.stringify({ success: true }), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Set-Cookie': cookieHeader,
+            ...corsHeaders
+          }
+        });
+      } catch (error) {
+        console.error('登出错误:', error);
+        return new Response(JSON.stringify({ error: '登出失败' }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+    }
+
+    // 处理管理员登录请求
+    if (path.toLowerCase() === 'admin/login') {
+      // 只允许 POST 方法
+      if (request.method !== 'POST') {
+        return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+          status: 405,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+
+      try {
+        console.log('处理管理员登录请求');
+        const data = await request.json();
+        const { username, password } = data;
+        
+        if (!username || !password) {
+          return new Response(JSON.stringify({ error: '用户名和密码不能为空' }), {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        // 查询用户
+        console.log('查询用户:', username);
+        const user = await env.DB.prepare(
+          'SELECT * FROM users WHERE username = ?'
+        ).bind(username).first();
+        
+        if (!user) {
+          console.log('用户不存在');
+          return new Response(JSON.stringify({ error: '用户名或密码错误' }), {
+            status: 401,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 验证密码
+        console.log('验证密码');
+        const isValid = await bcrypt.compare(password, user.password);
+        if (!isValid) {
+          console.log('密码错误');
+          return new Response(JSON.stringify({ error: '用户名或密码错误' }), {
+            status: 401,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        console.log('登录成功，创建会话');
+        // 创建会话
+        const sessionId = crypto.randomUUID();
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7天后过期
+        
+        await env.DB.prepare(`
+          INSERT INTO sessions (id, user_id, username, expires_at)
+          VALUES (?, ?, ?, ?)
+        `).bind(
+          sessionId,
+          user.id,
+          user.username,
+          expiresAt.toISOString()
+        ).run();
+        
+        // 设置 cookie
+        const cookieHeader = `session_id=${sessionId}; HttpOnly; Secure; SameSite=Strict; Path=/; Expires=${expiresAt.toUTCString()}`;
+        
+        return new Response(JSON.stringify({ success: true }), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Set-Cookie': cookieHeader,
+            ...corsHeaders
+          }
+        });
+      } catch (error) {
+        console.error('登录错误:', error);
+        return new Response(JSON.stringify({ error: '登录失败' }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+    }
+
     // 处理文件上传 - 优化路径匹配
     if (path.toLowerCase() === 'upload') {
       // 只允许 POST 方法
