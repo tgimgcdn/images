@@ -799,7 +799,8 @@ async function batchDeleteImages() {
                         method: 'DELETE'
                     });
                     
-                    if (response.ok) {
+                    // 修复响应判断逻辑
+                    if (!response.error) {  // 改为判断是否有error字段，而不是判断ok属性
                         successCount++;
                         // 从DOM中移除对应的图片卡片
                         const card = document.querySelector(`.image-card[data-id="${id}"]`);
@@ -808,7 +809,7 @@ async function batchDeleteImages() {
                         }
                     } else {
                         failCount++;
-                        console.error(`删除图片 ${id} 失败`);
+                        console.error(`删除图片 ${id} 失败:`, response.error);
                     }
                 } catch (err) {
                     failCount++;
@@ -858,7 +859,8 @@ async function deleteImage(id) {
             method: 'DELETE'
         });
         
-        if (response.ok) {
+        // 修复响应判断逻辑
+        if (!response.error) {  // 改为判断是否有error字段，而不是判断ok属性
             // 从DOM中移除对应的图片卡片
             const card = document.querySelector(`.image-card[data-id="${id}"]`);
             if (card) {
@@ -876,7 +878,8 @@ async function deleteImage(id) {
                 }
             }
         } else {
-            showNotification('删除图片失败', 'error');
+            console.error('删除图片失败:', response.error);
+            showNotification(`删除图片失败: ${response.error || '未知错误'}`, 'error');
         }
     } catch (error) {
         console.error('删除图片时出错:', error);
