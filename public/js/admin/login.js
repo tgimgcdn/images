@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loginForm = document.getElementById('loginForm');
     const errorMessage = document.querySelector('.error-message');
     const recaptchaContainer = document.getElementById('recaptchaContainer');
-    const recaptchaElement = document.querySelector('.g-recaptcha');
+    const recaptchaElement = document.getElementById('recaptchaElement');
 
     console.log('登录页面已加载');
     console.log('当前Cookie:', document.cookie);
@@ -14,18 +14,73 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    // 动态加载reCAPTCHA脚本的函数
+    const loadRecaptchaScript = (siteKey) => {
+        return new Promise((resolve, reject) => {
+            console.log('开始加载reCAPTCHA脚本，siteKey:', siteKey);
+            // 创建script元素
+            const script = document.createElement('script');
+            script.src = `https://recaptcha.net/recaptcha/api.js?render=explicit`;
+            script.async = true;
+            script.defer = true;
+            
+            // 脚本加载完成后的回调
+            script.onload = () => {
+                console.log('reCAPTCHA脚本加载完成，开始渲染');
+                // 等待grecaptcha对象初始化
+                const checkRecaptchaLoaded = setInterval(() => {
+                    if (window.grecaptcha && window.grecaptcha.render) {
+                        clearInterval(checkRecaptchaLoaded);
+                        try {
+                            // 显式渲染reCAPTCHA
+                            const recaptchaId = grecaptcha.render('recaptchaElement', {
+                                'sitekey': siteKey,
+                                'theme': 'light'
+                            });
+                            console.log('reCAPTCHA渲染成功，ID:', recaptchaId);
+                            resolve(recaptchaId);
+                        } catch (error) {
+                            console.error('渲染reCAPTCHA失败:', error);
+                            reject(error);
+                        }
+                    }
+                }, 100);
+            };
+            
+            script.onerror = (error) => {
+                console.error('加载reCAPTCHA脚本失败:', error);
+                reject(error);
+            };
+            
+            // 添加脚本到页面
+            document.head.appendChild(script);
+        });
+    };
+
     // 检查是否启用了 reCAPTCHA
     let recaptchaEnabled = false;
+    let recaptchaId = null;
+    
     try {
+        console.log('开始获取reCAPTCHA配置');
         const response = await fetch('/api/admin/recaptcha-config');
         if (response.ok) {
             const config = await response.json();
+            console.log('获取到reCAPTCHA配置:', config);
             
             if (config.enabled && config.siteKey) {
+                console.log('reCAPTCHA已启用，站点密钥:', config.siteKey);
                 recaptchaEnabled = true;
                 recaptchaContainer.style.display = 'block';
-                recaptchaElement.setAttribute('data-sitekey', config.siteKey);
-                console.log('reCAPTCHA已启用，站点密钥:', config.siteKey);
+                
+                // 加载并初始化reCAPTCHA
+                try {
+                    recaptchaId = await loadRecaptchaScript(config.siteKey);
+                } catch (error) {
+                    console.error('初始化reCAPTCHA失败:', error);
+                    recaptchaEnabled = false;
+                    recaptchaContainer.style.display = 'none';
+                }
             } else {
                 console.log('reCAPTCHA未启用或配置不完整');
             }
@@ -53,10 +108,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             passwordLength: password.length
         });
         
-        // 只在reCAPTCHA启用且可见时才获取响应
-        const recaptchaResponse = recaptchaEnabled && recaptchaContainer.style.display !== 'none' 
-            ? (window.grecaptcha ? grecaptcha.getResponse() : null)
-            : null;
+        // 只在reCAPTCHA启用且初始化成功时获取响应
+        let recaptchaResponse = null;
+        if (recaptchaEnabled && recaptchaId !== null && window.grecaptcha) {
+            try {
+                recaptchaResponse = grecaptcha.getResponse(recaptchaId);
+                console.log('获取到reCAPTCHA响应，长度:', recaptchaResponse ? recaptchaResponse.length : 0);
+            } catch (error) {
+                console.error('获取reCAPTCHA响应失败:', error);
+            }
+        }
 
         // 显示加载状态
         const submitButton = loginForm.querySelector('button[type="submit"]');
@@ -116,8 +177,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 
                 // 如果启用了 reCAPTCHA，重置验证
-                if (recaptchaEnabled && window.grecaptcha) {
-                    grecaptcha.reset();
+                if (recaptchaEnabled && recaptchaId !== null && window.grecaptcha) {
+                    try {
+                        grecaptcha.reset(recaptchaId);
+                        console.log('重置reCAPTCHA验证');
+                    } catch (error) {
+                        console.error('重置reCAPTCHA失败:', error);
+                    }
                 }
             }
         } catch (error) {
