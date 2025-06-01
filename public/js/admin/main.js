@@ -483,25 +483,12 @@ async function initDashboard() {
             document.getElementById('todayUploads').textContent = '-';
             document.getElementById('totalViews').textContent = '-';
         } else {
-            // 更新统计卡片
-            document.getElementById('totalImages').textContent = stats.total_images;
-            document.getElementById('todayUploads').textContent = stats.today_uploads;
+            // 更新统计卡片 - 只显示真实统计数据
+            document.getElementById('totalImages').textContent = stats.total_images || '0';
+            document.getElementById('todayUploads').textContent = stats.today_uploads || '0';
+            document.getElementById('totalViews').textContent = stats.total_views || '0';
             
-            // 如果总访问量为0，但趋势图中有数据，则从趋势数据中汇总访问量
-            if (stats.total_views === 0) {
-                console.log('总访问量为0，尝试从趋势数据中计算...');
-                const trendData = await safeApiCall('/api/stats/trend');
-                if (!trendData.error && trendData.values && trendData.values.length > 0) {
-                    // 计算趋势数据中的总访问量
-                    const calculatedTotalViews = trendData.values.reduce((sum, count) => sum + count, 0);
-                    document.getElementById('totalViews').textContent = calculatedTotalViews;
-                    console.log(`从趋势数据计算的总访问量: ${calculatedTotalViews}`);
-                } else {
-                    document.getElementById('totalViews').textContent = stats.total_views;
-                }
-            } else {
-                document.getElementById('totalViews').textContent = stats.total_views;
-            }
+            // 不再从趋势数据中计算总访问量，只使用API返回的实际值
         }
 
         // 获取访问趋势数据
@@ -512,8 +499,16 @@ async function initDashboard() {
             // 显示空图表或占位符
             document.getElementById('viewsChart').innerHTML = '<div class="chart-placeholder">暂无数据</div>';
         } else {
-            // 初始化图表
-            initViewsChart(trendData);
+            // 检查趋势数据是否全部为零（没有实际访问记录）
+            const hasRealData = trendData.values && trendData.values.some(value => value > 0);
+            
+            if (!hasRealData) {
+                // 没有真实数据时显示提示信息
+                document.getElementById('viewsChart').innerHTML = '<div class="chart-placeholder">暂无访问记录，请等待累积实际数据</div>';
+            } else {
+                // 有真实数据时初始化图表
+                initViewsChart(trendData);
+            }
         }
     } catch (error) {
         console.error('加载控制面板数据失败:', error);
