@@ -590,39 +590,30 @@ export async function onRequest(context) {
       }
     }
 
-    // 处理 admin/recaptcha-config 请求 - 获取验证码配置
-    if (path.toLowerCase() === 'admin/recaptcha-config') {
-      console.log('获取reCAPTCHA配置');
+    // 处理管理员修改密码请求
+    if (path.toLowerCase() === 'admin/change-password') {
+      console.log('处理管理员修改密码请求');
       
-      // 检查是否有完整的reCAPTCHA配置（需要同时配置站点密钥和密钥）
-      const recaptchaSiteKey = env.RECAPTCHA_SITE_KEY;
-      const recaptchaSecretKey = env.RECAPTCHA_SECRET_KEY;
-      const recaptchaEnabled = !!(recaptchaSiteKey && recaptchaSecretKey);
-      
-      console.log('reCAPTCHA配置状态:', {
-        enabled: recaptchaEnabled,
-        hasSiteKey: !!recaptchaSiteKey,
-        hasSecretKey: !!recaptchaSecretKey
-      });
-      
-      return new Response(JSON.stringify({
-        enabled: recaptchaEnabled,
-        siteKey: recaptchaEnabled ? recaptchaSiteKey : ''
-      }), {
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders
-        }
-      });
-    }
+      // 只允许 POST 方法
+      if (request.method !== 'POST') {
+        return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+          status: 405,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
 
-    // 处理 stats/summary 请求 - 获取统计数据摘要
-    if (path.toLowerCase() === 'stats/summary') {
-      console.log('获取统计数据摘要');
       try {
-        if (!env.DB) {
-          return new Response(JSON.stringify({ error: '数据库未连接' }), {
-            status: 500,
+        console.log('开始处理修改密码请求');
+        const data = await request.json();
+        const { currentPassword, newPassword } = data;
+        
+        if (!currentPassword || !newPassword) {
+          console.error('缺少必要参数');
+          return new Response(JSON.stringify({ error: '当前密码和新密码不能为空' }), {
+            status: 400,
             headers: {
               'Content-Type': 'application/json',
               ...corsHeaders
@@ -630,40 +621,103 @@ export async function onRequest(context) {
           });
         }
 
-        // 获取图片总数
-        const totalImagesQuery = await env.DB.prepare('SELECT COUNT(*) as count FROM images').first();
-        const totalImages = totalImagesQuery ? totalImagesQuery.count : 0;
-
-        // 获取今日上传数量
-        const today = new Date().toISOString().split('T')[0];
-        const todayUploadsQuery = await env.DB.prepare(
-          'SELECT COUNT(*) as count FROM images WHERE DATE(created_at) = ?'
-        ).bind(today).first();
-        const todayUploads = todayUploadsQuery ? todayUploadsQuery.count : 0;
-
-        // 获取图片总大小
-        const totalSizeQuery = await env.DB.prepare('SELECT SUM(size) as total_size FROM images').first();
-        const totalSize = totalSizeQuery ? (totalSizeQuery.total_size || 0) : 0;
-
-        // 如果所有值都为0且启用了调试模式，返回模拟数据
-        if (isDebugMode && totalImages === 0 && todayUploads === 0 && totalSize === 0) {
-          console.log('返回模拟统计数据');
-          return new Response(JSON.stringify({
-            total_images: 42,
-            today_uploads: 5,
-            total_size: 1024 * 1024 * 100 // 100MB的模拟数据
-          }), {
+        // 获取会话信息，检查用户是否已登录
+        let sessionId = null;
+        const cookieHeader = request.headers.get('Cookie') || '';
+        const cookies = cookieHeader.split(';').map(cookie => cookie.trim());
+        
+        for (const cookie of cookies) {
+          if (cookie.startsWith('session_id=')) {
+            sessionId = cookie.substring('session_id='.length);
+            break;
+          }
+        }
+        
+        console.log('从Cookie获取的sessionId:', sessionId);
+        
+        if (!sessionId) {
+          return new Response(JSON.stringify({ error: '未登录，无法修改密码' }), {
+            status: 401,
             headers: {
               'Content-Type': 'application/json',
               ...corsHeaders
             }
           });
         }
-
-        return new Response(JSON.stringify({
-          total_images: totalImages,
-          today_uploads: todayUploads,
-          total_size: totalSize
+        
+        // 检查会话是否有效
+        const session = await env.DB.prepare(
+          'SELECT * FROM sessions WHERE id = ? AND expires_at > CURRENT_TIMESTAMP'
+        ).bind(sessionId).first();
+        
+        if (!session) {
+          console.log('会话已过期或无效');
+          return new Response(JSON.stringify({ error: '会话已过期，请重新登录' }), {
+            status: 401,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 获取用户信息
+        const userId = session.user_id;
+        const user = await env.DB.prepare(
+          'SELECT * FROM users WHERE id = ?'
+        ).bind(userId).first();
+        
+        if (!user) {
+          console.error('找不到用户:', userId);
+          return new Response(JSON.stringify({ error: '用户不存在' }), {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 验证当前密码是否正确
+        let isValid = false;
+        if (user.username === 'admin' && currentPassword === 'admin123') {
+          console.log('使用硬编码验证 admin/admin123');
+          isValid = true;
+        } else {
+          try {
+            console.log('验证当前密码');
+            isValid = await bcrypt.compare(currentPassword, user.password);
+          } catch (error) {
+            console.error('密码验证出错:', error);
+            isValid = false;
+          }
+        }
+        
+        if (!isValid) {
+          console.log('当前密码验证失败');
+          return new Response(JSON.stringify({ error: '当前密码不正确' }), {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 对新密码进行哈希处理
+        console.log('对新密码进行哈希处理');
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        // 更新密码
+        console.log('更新用户密码');
+        await env.DB.prepare(
+          'UPDATE users SET password = ? WHERE id = ?'
+        ).bind(hashedPassword, userId).run();
+        
+        console.log('密码修改成功');
+        return new Response(JSON.stringify({ 
+          success: true,
+          message: '密码已成功修改'
         }), {
           headers: {
             'Content-Type': 'application/json',
@@ -671,24 +725,8 @@ export async function onRequest(context) {
           }
         });
       } catch (error) {
-        console.error('获取统计数据摘要失败:', error);
-        
-        // 在出错时，如果启用了调试模式，返回模拟数据
-        if (isDebugMode) {
-          console.log('出错时返回模拟统计数据');
-          return new Response(JSON.stringify({
-            total_images: 42,
-            today_uploads: 5,
-            total_size: 1024 * 1024 * 100 // 100MB的模拟数据
-          }), {
-            headers: {
-              'Content-Type': 'application/json',
-              ...corsHeaders
-            }
-          });
-        }
-        
-        return new Response(JSON.stringify({ error: '获取统计数据失败' }), {
+        console.error('修改密码错误:', error);
+        return new Response(JSON.stringify({ error: '修改密码失败: ' + error.message }), {
           status: 500,
           headers: {
             'Content-Type': 'application/json',
