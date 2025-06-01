@@ -1,26 +1,35 @@
 {
   "version": 1,
-  "include": ["/api/*", "/admin/*"],
+  "include": ["/*"],
   "exclude": ["/images/*"],
   "routes": [
     {
-      "routePath": "/api/:path*",
-      "mountPath": "/api",
-      "method": "",
-      "module": ["api/[[path]].js:onRequest"]
+      "src": "/api/(.*)",
+      "dest": "/functions/api/[[path]].js"
     },
     {
-      "routePath": "/admin/login.html",
-      "mountPath": "/",
-      "method": "",
-      "module": ["public/admin/login.html"]
+      "src": "/admin/login.html",
+      "dest": "/public/admin/login.html"
     },
     {
-      "routePath": "/admin/:path*",
-      "mountPath": "/admin",
-      "method": "",
-      "module": ["admin/[[path]].js:onRequest"]
+      "src": "/admin/(.*)",
+      "dest": "/functions/admin/[[path]].js"
+    },
+    {
+      "src": "/js/(.*)",
+      "dest": "/public/js/$1"
+    },
+    {
+      "src": "/css/(.*)",
+      "dest": "/public/css/$1"
+    },
+    {
+      "src": "/",
+      "dest": "/public/index.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/$1"
     }
-  ],
-  "baseURL": "/"
+  ]
 } 
