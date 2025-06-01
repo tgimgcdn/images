@@ -476,6 +476,15 @@ body {
     padding: 20px;
     border-radius: 8px;
     box-shadow: var(--shadow);
+    margin-bottom: 20px;
+}
+
+.settings-card h3 {
+    margin-top: 0;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+    color: var(--primary-color);
 }
 
 .settings-form {
@@ -1256,4 +1265,51 @@ input:checked + .slider:before {
 
 .dropdown-toggle.active {
     background-color: #3a7cbd;
+}
+
+/* 密码修改表单样式 */
+.password-error {
+    color: #e74c3c;
+    font-size: 12px;
+    margin-top: 5px;
+    padding: 5px 10px;
+    border-left: 3px solid #e74c3c;
+    background-color: rgba(231, 76, 60, 0.1);
+    border-radius: 0 3px 3px 0;
+    margin-bottom: 10px;
+}
+
+.password-form-group {
+    margin-bottom: 20px;
+}
+
+/* 输入框焦点样式 */
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.25);
+    outline: none;
+}
+
+/* 密码输入框额外样式 */
+input[type="password"].form-control {
+    letter-spacing: 2px;
+    font-family: monospace;
+}
+
+/* 提交按钮悬停效果增强 */
+.settings-form .btn-primary:hover {
+    background-color: #2a6cc2;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+}
+
+/* 动画加载指示器 */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.fa-spinner {
+    animation: spin 1s linear infinite;
 } 
