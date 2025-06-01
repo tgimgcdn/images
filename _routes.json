@@ -12,6 +12,10 @@
       "dest": "/public/admin/login.html"
     },
     {
+      "src": "/admin$",
+      "dest": "/public/admin/index.html"
+    },
+    {
       "src": "/admin/(.*)",
       "dest": "/functions/admin/[[path]].js"
     },
@@ -24,7 +28,7 @@
       "dest": "/public/css/$1"
     },
     {
-      "src": "/",
+      "src": "/$",
       "dest": "/public/index.html"
     },
     {
