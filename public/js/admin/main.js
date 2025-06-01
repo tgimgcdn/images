@@ -7,6 +7,10 @@ let viewsChart = null;
 let isDebugMode = false; // 添加调试模式标志
 let allowedFileTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon']; // 默认允许的文件类型
 
+// 批量删除相关变量和函数
+let selectAllCheckbox;
+let batchDeleteButton;
+
 // DOM 加载完成后执行
 document.addEventListener('DOMContentLoaded', () => {
     try {
@@ -39,6 +43,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('加载文件类型失败，使用默认值:', err);
             });
         }, 100);
+
+        // 添加全屏预览容器
+        const fullsizePreview = document.createElement('div');
+        fullsizePreview.className = 'fullsize-preview';
+        fullsizePreview.innerHTML = `
+            <img src="" alt="Full size preview" />
+            <button class="close-preview">&times;</button>
+            <div class="image-info-panel"></div>
+        `;
+        document.body.appendChild(fullsizePreview);
+        
+        // 点击关闭按钮隐藏预览
+        fullsizePreview.querySelector('.close-preview').addEventListener('click', function() {
+            fullsizePreview.classList.remove('active');
+        });
+        
+        // 点击背景也可以关闭预览
+        fullsizePreview.addEventListener('click', function(e) {
+            if (e.target === fullsizePreview) {
+                fullsizePreview.classList.remove('active');
+            }
+        });
+        
+        // ESC键关闭预览
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && fullsizePreview.classList.contains('active')) {
+                fullsizePreview.classList.remove('active');
+            }
+        });
+
+        // 初始化批量操作
+        initBatchOperations();
+        
+        // 添加图片复选框变化事件委托
+        document.addEventListener('change', function(e) {
+            if (e.target.classList.contains('image-checkbox')) {
+                updateBatchDeleteButtonState();
+            }
+        });
     } catch (error) {
         console.error('初始化页面时出错:', error);
     }
@@ -269,526 +312,394 @@ function initImageManagement() {
         document.getElementById('uploadModal').style.display = 'block';
     });
     
-    // 添加批量操作按钮
-    const toolbar = document.querySelector('.toolbar');
-    const batchOperationsDiv = document.createElement('div');
-    batchOperationsDiv.className = 'batch-operations';
-    batchOperationsDiv.innerHTML = `
-        <label class="select-all-container">
-            <input type="checkbox" id="selectAllCheckbox">
-            <span>全选</span>
-        </label>
-        <button class="btn btn-danger" id="batchDeleteBtn" disabled>
-            <i class="fas fa-trash"></i>
-            批量删除
-        </button>
-    `;
-    
-    toolbar.appendChild(batchOperationsDiv);
-    
-    // 全选功能
-    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-    selectAllCheckbox.addEventListener('change', () => {
-        const checkboxes = document.querySelectorAll('.image-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = selectAllCheckbox.checked;
-        });
-        updateBatchOperationButtons();
-    });
-    
-    // 批量删除功能
-    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
-    batchDeleteBtn.addEventListener('click', () => {
-        const selectedIds = getSelectedImageIds();
-        if (selectedIds.length > 0) {
-            if (confirm(`确定要删除选中的 ${selectedIds.length} 张图片吗？`)) {
-                batchDeleteImages(selectedIds);
-            }
-        }
-    });
-    
-    // 添加委托事件监听，处理复选框变化
-    document.addEventListener('change', (e) => {
-        if (e.target.classList.contains('image-checkbox')) {
-            updateBatchOperationButtons();
-        }
-    });
-
     // 初始加载图片
     loadImages();
 }
 
-// 获取选中的图片ID
-function getSelectedImageIds() {
-    const checkboxes = document.querySelectorAll('.image-checkbox:checked');
-    return Array.from(checkboxes).map(checkbox => checkbox.dataset.id);
-}
-
-// 更新批量操作按钮状态
-function updateBatchOperationButtons() {
-    const selectedIds = getSelectedImageIds();
-    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+// 初始化批量操作按钮
+function initBatchOperations() {
+    // 创建批量操作工具栏
+    const batchOpsToolbar = document.createElement('div');
+    batchOpsToolbar.className = 'batch-operations';
+    batchOpsToolbar.innerHTML = `
+        <div class="select-all-container">
+            <input type="checkbox" id="selectAllImages">
+            <label for="selectAllImages">全选</label>
+        </div>
+        <button id="batchDeleteBtn" class="btn-danger" disabled>
+            <i class="fas fa-trash"></i> 批量删除
+        </button>
+    `;
     
-    if (selectedIds.length > 0) {
-        batchDeleteBtn.disabled = false;
-        batchDeleteBtn.textContent = `删除选中(${selectedIds.length})`;
+    // 将工具栏插入到图片网格上方
+    const imageSection = document.querySelector('.image-section');
+    if (imageSection) {
+        imageSection.insertBefore(batchOpsToolbar, imageSection.firstChild);
     } else {
-        batchDeleteBtn.disabled = true;
-        batchDeleteBtn.innerHTML = `<i class="fas fa-trash"></i> 批量删除`;
+        // 如果找不到.image-section，则插入到图片网格上方
+        const imageGrid = document.getElementById('imageGrid');
+        if (imageGrid && imageGrid.parentNode) {
+            imageGrid.parentNode.insertBefore(batchOpsToolbar, imageGrid);
+        }
     }
     
-    // 更新全选复选框状态
-    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-    const allCheckboxes = document.querySelectorAll('.image-checkbox');
+    // 获取引用
+    selectAllCheckbox = document.getElementById('selectAllImages');
+    batchDeleteButton = document.getElementById('batchDeleteBtn');
     
-    if (allCheckboxes.length > 0 && selectedIds.length === allCheckboxes.length) {
-        selectAllCheckbox.checked = true;
-        selectAllCheckbox.indeterminate = false;
-    } else if (selectedIds.length > 0) {
-        selectAllCheckbox.checked = false;
-        selectAllCheckbox.indeterminate = true;
-    } else {
-        selectAllCheckbox.checked = false;
-        selectAllCheckbox.indeterminate = false;
+    // 添加全选事件监听
+    selectAllCheckbox.addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.image-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = selectAllCheckbox.checked;
+        });
+        
+        updateBatchDeleteButtonState();
+    });
+    
+    // 添加批量删除事件监听
+    batchDeleteButton.addEventListener('click', batchDeleteImages);
+}
+
+// 更新批量删除按钮状态
+function updateBatchDeleteButtonState() {
+    const checkedBoxes = document.querySelectorAll('.image-checkbox:checked');
+    if (batchDeleteButton) {
+        batchDeleteButton.disabled = checkedBoxes.length === 0;
     }
 }
 
 // 批量删除图片
-async function batchDeleteImages(ids) {
-    try {
-        // 显示加载状态
-        const batchDeleteBtn = document.getElementById('batchDeleteBtn');
-        const originalText = batchDeleteBtn.innerHTML;
-        batchDeleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 删除中...';
-        batchDeleteBtn.disabled = true;
-        
-        let successCount = 0;
-        let failCount = 0;
-        
-        // 顺序删除每个图片
-        for (const id of ids) {
-            try {
-                const response = await fetch(`/api/images/${id}`, {
-                    method: 'DELETE',
-                    credentials: 'include'
-                });
-                
-                if (response.ok) {
-                    successCount++;
-                } else {
+async function batchDeleteImages() {
+    const checkedBoxes = document.querySelectorAll('.image-checkbox:checked');
+    const imageIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.id);
+    
+    if (imageIds.length === 0) {
+        showNotification('请选择要删除的图片', 'warning');
+        return;
+    }
+    
+    if (confirm(`确定要删除选中的 ${imageIds.length} 张图片吗？此操作不可逆。`)) {
+        try {
+            batchDeleteButton.disabled = true;
+            batchDeleteButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 删除中...';
+            
+            // 逐个删除图片
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (const id of imageIds) {
+                try {
+                    const response = await safeApiCall(`/api/images/${id}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (response.ok) {
+                        successCount++;
+                        // 从DOM中移除对应的图片卡片
+                        const card = document.querySelector(`.image-card[data-id="${id}"]`);
+                        if (card) {
+                            card.remove();
+                        }
+                    } else {
+                        failCount++;
+                        console.error(`删除图片 ${id} 失败`);
+                    }
+                } catch (err) {
                     failCount++;
+                    console.error(`删除图片 ${id} 出错:`, err);
                 }
-            } catch (error) {
-                console.error(`删除图片 ${id} 失败:`, error);
-                failCount++;
             }
+            
+            // 重置全选状态
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
+            }
+            
+            // 如果所有图片都被删除了，显示无图片提示
+            if (document.querySelectorAll('.image-card').length === 0) {
+                document.getElementById('imageGrid').innerHTML = '<div class="no-images">暂无图片</div>';
+                document.getElementById('pagination').innerHTML = '';
+            }
+            
+            // 显示结果
+            let message = '';
+            if (successCount > 0) {
+                message += `成功删除 ${successCount} 张图片。`;
+            }
+            if (failCount > 0) {
+                message += `${failCount} 张图片删除失败。`;
+            }
+            
+            showNotification(message, successCount > 0 ? 'success' : 'error');
+        } catch (error) {
+            console.error('批量删除图片失败:', error);
+            showNotification('批量删除操作失败: ' + error.message, 'error');
+        } finally {
+            batchDeleteButton.disabled = false;
+            batchDeleteButton.innerHTML = '<i class="fas fa-trash"></i> 批量删除';
+            updateBatchDeleteButtonState();
         }
-        
-        // 恢复按钮状态
-        batchDeleteBtn.innerHTML = originalText;
-        batchDeleteBtn.disabled = false;
-        
-        // 显示结果
-        if (failCount === 0) {
-            showToast(`成功删除 ${successCount} 张图片`, 'success');
-        } else {
-            showToast(`删除完成: ${successCount} 成功, ${failCount} 失败`, 'warning');
-        }
-        
-        // 重新加载图片列表
-        loadImages();
-    } catch (error) {
-        console.error('批量删除图片失败:', error);
-        showToast('批量删除失败', 'error');
-        
-        // 恢复按钮状态
-        const batchDeleteBtn = document.getElementById('batchDeleteBtn');
-        batchDeleteBtn.innerHTML = '<i class="fas fa-trash"></i> 批量删除';
-        batchDeleteBtn.disabled = false;
     }
 }
 
-async function loadImages() {
+// 单个图片删除
+async function deleteImage(id) {
     try {
-        // 设置每页显示36张图片（6行×6列）
-        const limit = 36;
-        const data = await safeApiCall(
-            `/api/images?page=${currentPage}&limit=${limit}&sort=${currentSort}&search=${currentSearch}`
-        );
+        const response = await safeApiCall(`/api/images/${id}`, {
+            method: 'DELETE'
+        });
         
-        if (data.error) {
-            showToast(`加载图片列表失败: ${data.error}`, 'error');
-            return;
+        if (response.ok) {
+            // 从DOM中移除对应的图片卡片
+            const card = document.querySelector(`.image-card[data-id="${id}"]`);
+            if (card) {
+                card.remove();
+            }
+            
+            showNotification('图片已成功删除', 'success');
+            
+            // 如果所有图片都被删除了，显示无图片提示
+            if (document.querySelectorAll('.image-card').length === 0) {
+                document.getElementById('imageGrid').innerHTML = '<div class="no-images">暂无图片</div>';
+                document.getElementById('pagination').innerHTML = '';
+            }
+        } else {
+            showNotification('删除图片失败', 'error');
+        }
+    } catch (error) {
+        console.error('删除图片时出错:', error);
+        showNotification('删除图片失败: ' + error.message, 'error');
+    }
+}
+
+// 显示通知消息
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    
+    // 添加到页面
+    document.body.appendChild(notification);
+    
+    // 2秒后淡出
+    setTimeout(() => {
+        notification.classList.add('fade-out');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 500);
+    }, 2000);
+}
+
+// 设置分页
+function setupPagination(total, currentPage, totalPages) {
+    const paginationContainer = document.getElementById('pagination');
+    if (!paginationContainer) return;
+    
+    paginationContainer.innerHTML = '';
+    
+    if (totalPages <= 1) return;
+    
+    const createPageButton = (page, text, isActive = false, isDisabled = false) => {
+        const button = document.createElement('button');
+        button.className = `page-btn ${isActive ? 'active' : ''} ${isDisabled ? 'disabled' : ''}`;
+        button.textContent = text;
+        
+        if (!isDisabled) {
+            button.addEventListener('click', () => {
+                loadImages(page, document.getElementById('searchInput')?.value || '');
+            });
         }
         
-        // 更新图片列表
-        const imageList = document.getElementById('imageList');
-        imageList.innerHTML = '';
+        return button;
+    };
+    
+    // 上一页按钮
+    paginationContainer.appendChild(
+        createPageButton(currentPage - 1, '上一页', false, currentPage === 1)
+    );
+    
+    // 页码按钮
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        paginationContainer.appendChild(
+            createPageButton(i, i.toString(), i === currentPage)
+        );
+    }
+    
+    // 下一页按钮
+    paginationContainer.appendChild(
+        createPageButton(currentPage + 1, '下一页', false, currentPage === totalPages)
+    );
+}
+
+async function loadImages(page = 1, search = '') {
+    try {
+        imageGrid.innerHTML = '<div class="loading-spinner"></div>';
+        
+        // 构建API URL
+        let url = `/api/images?page=${page}&limit=36`;
+        if (search) {
+            url += `&search=${encodeURIComponent(search)}`;
+        }
+        
+        const response = await safeApiCall(url);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load images: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // 清除当前显示
+        imageGrid.innerHTML = '';
         
         if (data.images && data.images.length > 0) {
+            // 显示图片
             data.images.forEach(image => {
-                const imageCard = createImageCard(image);
-                imageList.appendChild(imageCard);
+                const card = createImageCard(image);
+                imageGrid.appendChild(card);
             });
+            
+            // 更新选中状态
+            updateBatchDeleteButtonState();
+            
+            // 设置分页
+            setupPagination(data.total, data.page, data.totalPages);
         } else {
-            imageList.innerHTML = '<div class="no-images">暂无图片</div>';
+            // 没有图片时显示提示
+            imageGrid.innerHTML = '<div class="no-images">暂无图片</div>';
+            paginationContainer.innerHTML = '';
         }
-        
-        // 更新分页
-        totalPages = data.total_pages || 1;
-        updatePagination();
     } catch (error) {
-        console.error('加载图片列表失败:', error);
-        showToast('加载图片列表失败', 'error');
+        console.error('Error loading images:', error);
+        imageGrid.innerHTML = `<div class="error-message">加载图片失败: ${error.message}</div>`;
     }
 }
 
 function createImageCard(image) {
     const card = document.createElement('div');
     card.className = 'image-card';
+    card.dataset.id = image.id;
     
     // 截断文件名，超过18个字符显示...
-    const truncatedName = image.name.length > 18 ? image.name.substring(0, 15) + '...' : image.name;
+    const displayName = image.filename.length > 18 
+        ? image.filename.substring(0, 18) + '...' 
+        : image.filename;
     
     card.innerHTML = `
         <div class="image-preview">
-            <img src="${image.url}" alt="${image.name}">
+            <img src="${image.thumbnail_url || image.url}" alt="${image.filename}" loading="lazy">
         </div>
         <div class="image-info">
-            <h3 title="${image.name}">
-                <span class="checkbox-container">
-                    <input type="checkbox" class="image-checkbox" data-id="${image.id}">
-                </span>
-                ${truncatedName}
-            </h3>
-            <p class="image-meta">
-                ${formatDate(image.upload_time)}
-            </p>
-            <div class="image-actions">
-                <button class="btn btn-primary copy-btn" data-url="${image.url}">
-                    <i class="fas fa-copy"></i>
-                    复制
-                </button>
-                <button class="btn btn-danger delete-btn" data-id="${image.id}">
-                    <i class="fas fa-trash"></i>
-                    删除
-                </button>
+            <div class="filename-container">
+                <input type="checkbox" class="image-checkbox" data-id="${image.id}">
+                <span class="image-filename" title="${image.filename}">${displayName}</span>
+                <div class="filename-tooltip">${image.filename}</div>
             </div>
+            <div class="upload-date">${formatDate(image.created_at)}</div>
+        </div>
+        <div class="image-actions">
+            <button class="btn-copy" data-url="${image.url}" title="复制链接">
+                <i class="fas fa-copy"></i>
+            </button>
+            <button class="btn-delete" data-id="${image.id}" title="删除图片">
+                <i class="fas fa-trash"></i>
+            </button>
         </div>
     `;
     
-    // 添加悬停文件名显示全名的功能
-    const filename = card.querySelector('h3');
-    filename.addEventListener('mouseenter', (e) => {
-        if (image.name.length > 18) {
-            const tooltip = document.createElement('div');
-            tooltip.className = 'image-filename-tooltip';
-            tooltip.textContent = image.name;
-            tooltip.style.top = `${e.target.offsetTop + e.target.offsetHeight}px`;
-            tooltip.style.left = `${e.target.offsetLeft}px`;
-            document.body.appendChild(tooltip);
-            
-            // 显示工具提示
-            setTimeout(() => {
-                tooltip.style.opacity = '1';
-            }, 10);
-            
-            // 保存工具提示引用
-            e.target.tooltip = tooltip;
+    // 文件名提示工具
+    const filenameSpan = card.querySelector('.image-filename');
+    const tooltip = card.querySelector('.filename-tooltip');
+    
+    filenameSpan.addEventListener('mouseenter', function() {
+        if (image.filename.length > 18) {
+            tooltip.style.display = 'block';
         }
     });
     
-    filename.addEventListener('mouseleave', (e) => {
-        if (e.target.tooltip) {
-            e.target.tooltip.style.opacity = '0';
-            setTimeout(() => {
-                if (e.target.tooltip && e.target.tooltip.parentNode) {
-                    e.target.tooltip.parentNode.removeChild(e.target.tooltip);
-                }
-                e.target.tooltip = null;
-            }, 300);
-        }
+    filenameSpan.addEventListener('mouseleave', function() {
+        tooltip.style.display = 'none';
     });
     
-    // 添加事件监听器
-    card.querySelector('.copy-btn').addEventListener('click', (e) => {
-        const url = e.target.closest('.copy-btn').dataset.url;
-        copyToClipboard(url);
+    // 添加点击预览大图功能
+    const imagePreview = card.querySelector('.image-preview');
+    imagePreview.addEventListener('click', function() {
+        const fullsizePreview = document.querySelector('.fullsize-preview');
+        const previewImg = fullsizePreview.querySelector('img');
+        const infoPanel = fullsizePreview.querySelector('.image-info-panel');
+        
+        // 设置原图URL
+        previewImg.src = image.url;
+        
+        // 设置图片信息
+        infoPanel.innerHTML = `
+            <div>${image.filename}</div>
+            <div>上传时间: ${formatDate(image.created_at)}</div>
+            <div>尺寸: <span id="img-dimensions">加载中...</span></div>
+        `;
+        
+        // 显示预览
+        fullsizePreview.classList.add('active');
+        
+        // 图片加载完成后获取尺寸
+        previewImg.onload = function() {
+            document.getElementById('img-dimensions').textContent = 
+                `${previewImg.naturalWidth} × ${previewImg.naturalHeight}`;
+        };
     });
     
-    card.querySelector('.delete-btn').addEventListener('click', async (e) => {
-        const id = e.target.closest('.delete-btn').dataset.id;
-        if (confirm('确定要删除这张图片吗？')) {
-            await deleteImage(id);
+    // 复制链接按钮
+    card.querySelector('.btn-copy').addEventListener('click', function(e) {
+        e.stopPropagation();
+        const url = this.dataset.url;
+        navigator.clipboard.writeText(url)
+            .then(() => {
+                showNotification('链接已复制到剪贴板', 'success');
+            })
+            .catch(err => {
+                showNotification('复制失败: ' + err, 'error');
+            });
+    });
+    
+    // 删除按钮
+    card.querySelector('.btn-delete').addEventListener('click', function(e) {
+        e.stopPropagation();
+        const imageId = this.dataset.id;
+        if (confirm('确定要删除这张图片吗？此操作不可逆。')) {
+            deleteImage(imageId);
         }
     });
     
     return card;
 }
 
-function updatePagination() {
-    const pagination = document.getElementById('pagination');
-    pagination.innerHTML = '';
-    
-    // 上一页按钮
-    if (currentPage > 1) {
-        const prevBtn = document.createElement('button');
-        prevBtn.textContent = '上一页';
-        prevBtn.addEventListener('click', () => {
-            currentPage--;
-            loadImages();
-        });
-        pagination.appendChild(prevBtn);
-    }
-    
-    // 页码按钮
-    for (let i = 1; i <= totalPages; i++) {
-        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-            const pageBtn = document.createElement('button');
-            pageBtn.textContent = i;
-            pageBtn.className = i === currentPage ? 'active' : '';
-            pageBtn.addEventListener('click', () => {
-                currentPage = i;
-                loadImages();
-            });
-            pagination.appendChild(pageBtn);
-        } else if (i === currentPage - 3 || i === currentPage + 3) {
-            const ellipsis = document.createElement('span');
-            ellipsis.textContent = '...';
-            pagination.appendChild(ellipsis);
-        }
-    }
-    
-    // 下一页按钮
-    if (currentPage < totalPages) {
-        const nextBtn = document.createElement('button');
-        nextBtn.textContent = '下一页';
-        nextBtn.addEventListener('click', () => {
-            currentPage++;
-            loadImages();
-        });
-        pagination.appendChild(nextBtn);
-    }
-}
-
-// 系统设置功能
-async function initSettings() {
-    try {
-        // 获取当前设置
-        const settings = await safeApiCall('/api/settings');
-        
-        if (settings.error) {
-            showToast(`加载设置失败: ${settings.error}`, 'error');
-            return;
-        }
-        
-        // 更新表单
-        document.getElementById('allowGuestUpload').checked = settings.allow_guest_upload === 'true';
-        document.getElementById('siteName').value = settings.site_name || '图床管理系统';
-        
-        // 保存设置
-        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const settingsData = Object.fromEntries(formData.entries());
-            
-            try {
-                const response = await safeApiCall('/api/settings', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(settingsData)
-                });
-                
-                if (response.error) {
-                    showToast(`保存设置失败: ${response.error}`, 'error');
-                } else {
-                    showToast('设置已保存', 'success');
-                }
-            } catch (error) {
-                console.error('保存设置失败:', error);
-                showToast('保存设置失败', 'error');
-            }
-        });
-        
-        // 添加调试模式切换
-        const debugModeContainer = document.createElement('div');
-        debugModeContainer.className = 'form-group';
-        debugModeContainer.innerHTML = `
-            <div class="switch-label">
-                <span>调试模式</span>
-                <label class="switch">
-                    <input type="checkbox" id="debugModeToggle" ${isDebugMode ? 'checked' : ''}>
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <p class="hint">调试模式会显示更多信息，并在没有数据时显示模拟数据</p>
-        `;
-        
-        document.querySelector('.settings-form').appendChild(debugModeContainer);
-        
-        document.getElementById('debugModeToggle').addEventListener('change', (e) => {
-            isDebugMode = e.target.checked;
-            localStorage.setItem('debugMode', isDebugMode);
-            
-            if (isDebugMode) {
-                document.body.classList.add('debug-mode');
-                showToast('调试模式已启用', 'info');
-            } else {
-                document.body.classList.remove('debug-mode');
-                showToast('调试模式已关闭', 'info');
-            }
-            
-            // 刷新数据
-            initDashboard();
-            loadImages();
-        });
-    } catch (error) {
-        console.error('加载设置失败:', error);
-        showToast('加载设置失败', 'error');
-    }
-}
-
-// 上传模态框功能
-function initUploadModal() {
-    const modal = document.getElementById('uploadModal');
-    const uploadArea = document.getElementById('uploadArea');
-    const fileInput = document.getElementById('fileInput');
-    const closeBtn = document.querySelector('.close-btn');
-    
-    // 关闭模态框
-    closeBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-    
-    // 点击外部关闭
-    window.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.style.display = 'none';
-        }
-    });
-    
-    // 拖放上传
-    uploadArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        uploadArea.classList.add('dragover');
-    });
-    
-    uploadArea.addEventListener('dragleave', () => {
-        uploadArea.classList.remove('dragover');
-    });
-    
-    uploadArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        uploadArea.classList.remove('dragover');
-        const files = e.dataTransfer.files;
-        handleFiles(files);
-    });
-    
-    // 点击上传
-    uploadArea.addEventListener('click', () => {
-        fileInput.click();
-    });
-    
-    fileInput.addEventListener('change', (e) => {
-        handleFiles(e.target.files);
-    });
-}
-
-async function handleFiles(files) {
-    const progressBar = document.querySelector('.progress-fill');
-    const progressText = document.querySelector('.progress-text');
-    const progressSpeed = document.querySelector('.progress-speed');
-    const uploadProgress = document.querySelector('.upload-progress');
-    
-    uploadProgress.style.display = 'block';
-    
-    for (const file of files) {
-        // 检查文件类型是否在允许列表中 - 添加更健壮的检查
-        try {
-            if (!file || !file.type) {
-                showToast(`文件类型无效`, 'error');
-                continue;
-            }
-            
-            // 默认基本检查 - 确保是图片文件
-            if (!file.type.startsWith('image/')) {
-                showToast(`只支持图片文件，当前文件类型: ${file.type}`, 'error');
-                continue;
-            }
-            
-            // 如果有具体的类型限制，进行精确匹配
-            if (allowedFileTypes && allowedFileTypes.length > 0) {
-                if (!allowedFileTypes.includes(file.type)) {
-                    showToast(`不支持的文件类型: ${file.type}。允许的类型: ${allowedFileTypes.join(', ')}`, 'error');
-                    continue;
-                }
-            }
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            try {
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', '/api/upload', true);
-                xhr.upload.onprogress = (e) => {
-                    if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
-                        progressBar.style.width = percent + '%';
-                        progressText.textContent = percent + '%';
-                        
-                        const speed = e.loaded / ((Date.now() - startTime) / 1000);
-                        progressSpeed.textContent = formatFileSize(speed) + '/s';
-                    }
-                };
-                
-                const startTime = Date.now();
-                
-                xhr.onload = async () => {
-                    if (xhr.status === 200) {
-                        showToast('上传成功', 'success');
-                        loadImages();
-                    } else {
-                        let errorMsg = '上传失败';
-                        try {
-                            const response = JSON.parse(xhr.responseText);
-                            if (response.error) {
-                                errorMsg = response.error;
-                            }
-                        } catch (e) {
-                            console.error('解析响应失败:', e);
-                        }
-                        showToast(errorMsg, 'error');
-                    }
-                };
-                
-                xhr.onerror = () => {
-                    showToast('上传失败，网络错误', 'error');
-                };
-                
-                xhr.send(formData);
-            } catch (error) {
-                console.error('上传文件失败:', error);
-                showToast('上传失败: ' + error.message, 'error');
-            }
-        } catch (error) {
-            console.error('处理文件时出错:', error);
-            showToast('处理文件时出错', 'error');
-        }
-    }
-}
-
 // 工具函数
 function formatDate(timestamp) {
+    // 创建日期对象
     const date = new Date(timestamp);
-    return date.toLocaleDateString('zh-CN', {
+    
+    // 调整为北京时间（UTC+8）
+    const beijingTime = new Date(date.getTime() + (8 * 60 * 60 * 1000));
+    
+    // 使用toLocaleString格式化日期，采用中文格式
+    return beijingTime.toLocaleString('zh-CN', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        hour12: false
     });
 }
 
@@ -803,29 +714,10 @@ function formatFileSize(bytes) {
 async function copyToClipboard(text) {
     try {
         await navigator.clipboard.writeText(text);
-        showToast('链接已复制', 'success');
+        showNotification('链接已复制', 'success');
     } catch (error) {
         console.error('复制失败:', error);
-        showToast('复制失败', 'error');
-    }
-}
-
-async function deleteImage(id) {
-    try {
-        const response = await fetch(`/api/images/${id}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-        
-        if (response.ok) {
-            showToast('删除成功', 'success');
-            loadImages();
-        } else {
-            showToast('删除失败', 'error');
-        }
-    } catch (error) {
-        console.error('删除图片失败:', error);
-        showToast('删除失败', 'error');
+        showNotification('复制失败', 'error');
     }
 }
 
