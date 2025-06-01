@@ -571,12 +571,6 @@ function initBatchOperations() {
                 <button id="batchCopyBtn" class="btn-primary dropdown-toggle" disabled>
                     <i class="fas fa-copy"></i> 批量复制
                 </button>
-                <div class="dropdown-menu">
-                    <a href="#" class="dropdown-item" data-format="url">复制URL</a>
-                    <a href="#" class="dropdown-item" data-format="markdown">复制Markdown</a>
-                    <a href="#" class="dropdown-item" data-format="bbcode">复制BBCode</a>
-                    <a href="#" class="dropdown-item" data-format="html">复制HTML</a>
-                </div>
             </div>
             <button id="batchDeleteBtn" class="btn-danger" disabled>
                 <i class="fas fa-trash"></i> 批量删除
@@ -603,7 +597,6 @@ function initBatchOperations() {
     batchDeleteButton = document.getElementById('batchDeleteBtn');
     const batchCopyButton = document.getElementById('batchCopyBtn');
     const batchCopyDropdown = document.querySelector('.batch-copy-dropdown');
-    const batchCopyMenu = batchCopyDropdown.querySelector('.dropdown-menu');
     
     if (selectAllCheckbox) {
         // 添加全选事件监听
@@ -649,9 +642,9 @@ function initBatchOperations() {
             const card = checkbox.closest('.image-card');
             const id = checkbox.dataset.id;
             
-            // 找到卡片中的URL和文件名
-            const urlItem = card.querySelector('.dropdown-item[data-format="url"]');
-            const url = urlItem ? urlItem.dataset.url : '';
+            // 查找图片URL和文件名
+            const imageElement = card.querySelector('.image-preview img');
+            const url = imageElement ? imageElement.src : '';
             const filename = card.querySelector('.image-filename').getAttribute('title');
             
             selectedImages.push({ id, url, filename });
@@ -673,7 +666,7 @@ function initBatchOperations() {
             { label: '复制HTML', format: 'html' }
         ];
         
-        // 显示全局下拉菜单
+        // 使用全局下拉菜单
         showGlobalDropdown(menuItems, batchCopyButton, (format) => {
             // 根据格式生成复制内容，每个链接一行
             let copyText = '';
@@ -1023,12 +1016,6 @@ function createImageCard(image) {
                 <button class="btn-copy dropdown-toggle" title="复制链接">
                     <i class="fas fa-copy"></i> 复制
                 </button>
-                <div class="dropdown-menu">
-                    <a href="#" class="dropdown-item" data-format="url" data-url="${image.url}">URL</a>
-                    <a href="#" class="dropdown-item" data-format="markdown" data-url="${image.url}" data-filename="${image.filename}">Markdown</a>
-                    <a href="#" class="dropdown-item" data-format="bbcode" data-url="${image.url}">BBCode</a>
-                    <a href="#" class="dropdown-item" data-format="html" data-url="${image.url}" data-filename="${image.filename}">HTML</a>
-                </div>
             </div>
             <button class="btn-delete" data-id="${image.id}" title="删除图片">
                 <i class="fas fa-trash"></i> 删除
@@ -1125,7 +1112,7 @@ function createImageCard(image) {
             });
         });
         
-        // 显示全局下拉菜单
+        // 使用全局下拉菜单
         showGlobalDropdown(menuItems, dropdownToggle, (format, url, filename) => {
             let copyText = '';
             switch(format) {
@@ -1269,28 +1256,54 @@ function showGlobalDropdown(items, triggerElement, onItemClick) {
 function positionDropdownMenu(menu, triggerElement) {
     // 获取触发元素的位置信息
     const triggerRect = triggerElement.getBoundingClientRect();
+    const isMobile = window.innerWidth <= 768;
     
     // 设置菜单初始位置 - 相对于视口
     menu.style.position = 'fixed'; // 使用fixed而不是absolute，避免滚动问题
-    menu.style.top = triggerRect.bottom + 'px';
-    menu.style.left = triggerRect.left + 'px';
     
-    // 确保菜单可见
-    setTimeout(() => {
-        const menuRect = menu.getBoundingClientRect();
-        const windowWidth = window.innerWidth;
-        const windowHeight = window.innerHeight;
+    if (isMobile) {
+        // 移动设备上，在点击位置附近居中显示
+        const menuWidth = 200; // 预估菜单宽度
+        let leftPosition = triggerRect.left + (triggerRect.width / 2) - (menuWidth / 2);
         
-        // 检查水平方向 - 确保不超出右边界
-        if (menuRect.right > windowWidth) {
-            menu.style.left = 'auto';
-            menu.style.right = (windowWidth - triggerRect.right) + 'px';
-        }
+        // 确保不会超出屏幕边缘
+        leftPosition = Math.max(10, leftPosition);
+        leftPosition = Math.min(window.innerWidth - menuWidth - 10, leftPosition);
         
-        // 检查垂直方向 - 如果下方空间不足，则向上显示
-        if (menuRect.bottom > windowHeight && triggerRect.top > menuRect.height) {
+        menu.style.left = leftPosition + 'px';
+        
+        // 在触发元素上方或下方显示，优先显示在下方
+        if (triggerRect.bottom + 200 > window.innerHeight && triggerRect.top > 200) {
+            // 如果下方空间不足且上方空间足够，则显示在上方
+            menu.style.bottom = (window.innerHeight - triggerRect.top + 10) + 'px';
             menu.style.top = 'auto';
-            menu.style.bottom = (windowHeight - triggerRect.top) + 'px';
+        } else {
+            // 否则显示在下方
+            menu.style.top = (triggerRect.bottom + 10) + 'px';
+            menu.style.bottom = 'auto';
         }
-    }, 10); // 稍微延长超时确保DOM更新
+    } else {
+        // 桌面设备上，跟随触发元素定位
+        menu.style.top = triggerRect.bottom + 'px';
+        menu.style.left = triggerRect.left + 'px';
+        
+        // 确保菜单可见
+        setTimeout(() => {
+            const menuRect = menu.getBoundingClientRect();
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            
+            // 检查水平方向 - 确保不超出右边界
+            if (menuRect.right > windowWidth) {
+                menu.style.left = 'auto';
+                menu.style.right = (windowWidth - triggerRect.right) + 'px';
+            }
+            
+            // 检查垂直方向 - 如果下方空间不足，则向上显示
+            if (menuRect.bottom > windowHeight && triggerRect.top > menuRect.height) {
+                menu.style.top = 'auto';
+                menu.style.bottom = (windowHeight - triggerRect.top) + 'px';
+            }
+        }, 10); // 稍微延长超时确保DOM更新
+    }
 } 
