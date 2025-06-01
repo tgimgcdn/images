@@ -330,26 +330,42 @@ body {
 .image-actions {
     display: flex;
     justify-content: space-between;
-    margin-top: 5px;
+    padding: 8px;
+    background: #f5f5f5;
+    border-top: 1px solid #eee;
 }
 
-.image-actions .btn {
-    padding: 5px 10px;
-    font-size: 12px;
-}
-
-.image-actions .copy-btn {
+.image-actions button {
     flex: 1;
+    padding: 6px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: all 0.2s;
+}
+
+.btn-copy {
+    background-color: var(--primary-color);
+    color: white;
     margin-right: 5px;
 }
 
-.image-actions .delete-btn {
-    flex: 1;
-    margin-left: 5px;
-    background-color: var(--danger-color);
+.btn-copy:hover {
+    background-color: #357abd;
 }
 
-.image-actions .delete-btn:hover {
+.btn-delete {
+    background-color: var(--danger-color);
+    color: white;
+    margin-left: 5px;
+}
+
+.btn-delete:hover {
     background-color: #c0392b;
 }
 
@@ -792,14 +808,14 @@ input:checked + .slider:before {
     100% { transform: rotate(360deg); }
 }
 
-/* 原图预览样式 */
+/* 原图预览样式优化 */
 .fullsize-preview {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(0, 0, 0, 0.85);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -807,6 +823,7 @@ input:checked + .slider:before {
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;
+    flex-direction: column;
 }
 
 .fullsize-preview.active {
@@ -814,28 +831,54 @@ input:checked + .slider:before {
     pointer-events: auto;
 }
 
+.preview-container {
+    position: relative;
+    width: 100%;
+    height: 90%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
 .fullsize-preview img {
     max-width: 90%;
     max-height: 90%;
     object-fit: contain;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    transition: transform 0.2s ease;
+    transform-origin: center;
 }
 
-.fullsize-preview .close-preview {
+.preview-controls {
     position: absolute;
     top: 20px;
     right: 20px;
-    color: white;
-    font-size: 24px;
-    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    gap: 10px;
+    z-index: 2010;
+}
+
+.preview-controls button {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
     cursor: pointer;
-    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.preview-controls button:hover {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.close-preview {
+    font-size: 24px;
 }
 
 .fullsize-preview .image-info-panel {
@@ -849,15 +892,52 @@ input:checked + .slider:before {
     border-radius: 8px;
     font-size: 14px;
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* 图片信息样式优化 */
+.image-info {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.filename-container {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.image-filename {
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-grow: 1;
+}
+
+.upload-date {
+    font-size: 12px;
+    color: #666;
+}
+
+/* 移除不需要的tooltip相关样式 */
+.filename-tooltip {
+    display: none;
 }
 
 /* 鼠标悬停效果增强 */
 .image-preview {
     position: relative;
+    cursor: zoom-in;
 }
 
 .image-preview::after {
-    content: "👁️ 查看原图";
+    content: "🔍 查看原图";
     position: absolute;
     bottom: 0;
     left: 0;
