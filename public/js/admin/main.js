@@ -82,21 +82,60 @@ document.addEventListener('DOMContentLoaded', () => {
         const fullsizePreview = document.createElement('div');
         fullsizePreview.className = 'fullsize-preview';
         fullsizePreview.innerHTML = `
-            <img src="" alt="Full size preview" />
-            <button class="close-preview">&times;</button>
+            <div class="preview-controls">
+                <button class="zoom-in" title="放大"><i class="fas fa-search-plus"></i></button>
+                <button class="zoom-out" title="缩小"><i class="fas fa-search-minus"></i></button>
+                <button class="zoom-reset" title="重置缩放"><i class="fas fa-sync-alt"></i></button>
+                <button class="close-preview">&times;</button>
+            </div>
+            <div class="preview-container">
+                <img src="" alt="Full size preview" />
+            </div>
             <div class="image-info-panel"></div>
         `;
         document.body.appendChild(fullsizePreview);
         
+        // 缩放控制变量
+        let currentZoom = 1;
+        const zoomStep = 0.2;
+        const previewImg = fullsizePreview.querySelector('img');
+        
+        // 缩放按钮功能
+        fullsizePreview.querySelector('.zoom-in').addEventListener('click', function(e) {
+            e.stopPropagation();
+            currentZoom += zoomStep;
+            updateZoom();
+        });
+        
+        fullsizePreview.querySelector('.zoom-out').addEventListener('click', function(e) {
+            e.stopPropagation();
+            currentZoom = Math.max(0.2, currentZoom - zoomStep);
+            updateZoom();
+        });
+        
+        fullsizePreview.querySelector('.zoom-reset').addEventListener('click', function(e) {
+            e.stopPropagation();
+            currentZoom = 1;
+            updateZoom();
+        });
+        
+        function updateZoom() {
+            previewImg.style.transform = `scale(${currentZoom})`;
+        }
+        
         // 点击关闭按钮隐藏预览
         fullsizePreview.querySelector('.close-preview').addEventListener('click', function() {
             fullsizePreview.classList.remove('active');
+            currentZoom = 1;
+            updateZoom();
         });
         
         // 点击背景也可以关闭预览
         fullsizePreview.addEventListener('click', function(e) {
-            if (e.target === fullsizePreview) {
+            if (e.target === fullsizePreview || e.target.classList.contains('preview-container')) {
                 fullsizePreview.classList.remove('active');
+                currentZoom = 1;
+                updateZoom();
             }
         });
         
@@ -104,8 +143,23 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && fullsizePreview.classList.contains('active')) {
                 fullsizePreview.classList.remove('active');
+                currentZoom = 1;
+                updateZoom();
             }
         });
+        
+        // 鼠标滚轮缩放
+        fullsizePreview.addEventListener('wheel', function(e) {
+            if (fullsizePreview.classList.contains('active')) {
+                e.preventDefault();
+                if (e.deltaY < 0) {
+                    currentZoom += zoomStep;
+                } else {
+                    currentZoom = Math.max(0.2, currentZoom - zoomStep);
+                }
+                updateZoom();
+            }
+        }, { passive: false });
     } catch (error) {
         console.error('初始化页面时出错:', error);
     }
@@ -797,32 +851,27 @@ function createImageCard(image) {
             <div class="filename-container">
                 <input type="checkbox" class="image-checkbox" data-id="${image.id}">
                 <span class="image-filename" title="${image.filename}">${displayName}</span>
-                <div class="filename-tooltip">${image.filename}</div>
             </div>
             <div class="upload-date">${formatDate(image.created_at)}</div>
         </div>
         <div class="image-actions">
             <button class="btn-copy" data-url="${image.url}" title="复制链接">
-                <i class="fas fa-copy"></i>
+                <i class="fas fa-copy"></i> 复制
             </button>
             <button class="btn-delete" data-id="${image.id}" title="删除图片">
-                <i class="fas fa-trash"></i>
+                <i class="fas fa-trash"></i> 删除
             </button>
         </div>
     `;
     
     // 文件名提示工具
     const filenameSpan = card.querySelector('.image-filename');
-    const tooltip = card.querySelector('.filename-tooltip');
     
     filenameSpan.addEventListener('mouseenter', function() {
         if (image.filename.length > 18) {
-            tooltip.style.display = 'block';
+            // 使用浏览器原生的title属性来显示完整文件名
+            // 而不是创建额外的tooltip元素
         }
-    });
-    
-    filenameSpan.addEventListener('mouseleave', function() {
-        tooltip.style.display = 'none';
     });
     
     // 添加点击预览大图功能
@@ -832,12 +881,15 @@ function createImageCard(image) {
         const previewImg = fullsizePreview.querySelector('img');
         const infoPanel = fullsizePreview.querySelector('.image-info-panel');
         
+        // 重置缩放
+        previewImg.style.transform = 'scale(1)';
+        
         // 设置原图URL
         previewImg.src = image.url;
         
         // 设置图片信息
         infoPanel.innerHTML = `
-            <div>${image.filename}</div>
+            <div>文件名: ${image.filename}</div>
             <div>上传时间: ${formatDate(image.created_at)}</div>
             <div>尺寸: <span id="img-dimensions">加载中...</span></div>
         `;
