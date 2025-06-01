@@ -58,6 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
             initImageManagement();
             console.log('初始化批量操作');
             initBatchOperations();
+            console.log('初始化系统设置');
+            initSettings();
             
             // 添加图片复选框变化事件委托
             document.addEventListener('change', function(e) {
