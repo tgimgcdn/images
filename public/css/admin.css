@@ -1126,20 +1126,22 @@ input:checked + .slider:before {
     top: 0;
     left: 0;
     width: 100%;
-    height: 0;
+    height: 100%;
     pointer-events: none;
     z-index: 9999;
 }
 
 .global-dropdown-menu {
-    position: absolute;
+    position: fixed; /* 使用fixed定位 */
     min-width: 150px;
     background-color: #fff;
     border-radius: 4px;
-    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.3);
     padding: 5px 0;
     pointer-events: auto;
     font-size: 14px;
+    max-height: 80vh; /* 防止菜单过长 */
+    overflow-y: auto;
 }
 
 .global-dropdown-menu .dropdown-item {
