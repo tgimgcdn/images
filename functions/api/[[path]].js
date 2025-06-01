@@ -630,17 +630,17 @@ export async function onRequest(context) {
         ).bind(today).first();
         const todayUploads = todayUploadsQuery ? todayUploadsQuery.count : 0;
 
-        // 获取总浏览量
-        const totalViewsQuery = await env.DB.prepare('SELECT SUM(views) as total FROM images').first();
-        const totalViews = totalViewsQuery ? (totalViewsQuery.total || 0) : 0;
+        // 获取图片总大小
+        const totalSizeQuery = await env.DB.prepare('SELECT SUM(size) as total_size FROM images').first();
+        const totalSize = totalSizeQuery ? (totalSizeQuery.total_size || 0) : 0;
 
         // 如果所有值都为0且启用了调试模式，返回模拟数据
-        if (isDebugMode && totalImages === 0 && todayUploads === 0 && totalViews === 0) {
+        if (isDebugMode && totalImages === 0 && todayUploads === 0 && totalSize === 0) {
           console.log('返回模拟统计数据');
           return new Response(JSON.stringify({
             total_images: 42,
             today_uploads: 5,
-            total_views: 1024
+            total_size: 1024 * 1024 * 100 // 100MB的模拟数据
           }), {
             headers: {
               'Content-Type': 'application/json',
@@ -652,7 +652,7 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({
           total_images: totalImages,
           today_uploads: todayUploads,
-          total_views: totalViews
+          total_size: totalSize
         }), {
           headers: {
             'Content-Type': 'application/json',
@@ -668,7 +668,7 @@ export async function onRequest(context) {
           return new Response(JSON.stringify({
             total_images: 42,
             today_uploads: 5,
-            total_views: 1024
+            total_size: 1024 * 1024 * 100 // 100MB的模拟数据
           }), {
             headers: {
               'Content-Type': 'application/json',
