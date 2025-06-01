@@ -293,16 +293,25 @@ export async function onRequest(context) {
       try {
         // 检查游客上传权限
         console.log('检查游客上传权限');
-        const session = request.headers.get('cookie')?.includes('userId=1') ? { userId: 1 } : null;
         
-        if (!session) {
+        // 检查是否存在会话(已登录)
+        const isLoggedIn = request.headers.get('cookie')?.includes('session_id=');
+        console.log('用户登录状态:', isLoggedIn ? '已登录' : '未登录');
+        
+        // 如果未登录，检查是否允许游客上传
+        if (!isLoggedIn) {
+          console.log('用户未登录，检查游客上传权限');
+          
           const setting = await env.DB.prepare(
             'SELECT value FROM settings WHERE key = ?'
           ).bind('allow_guest_upload').first();
           
-          if (!setting || setting.value !== 'true') {
-            console.log('游客上传已禁用');
-            return new Response(JSON.stringify({ error: '游客上传已禁用' }), {
+          const allowGuestUpload = setting?.value === 'true';
+          console.log('游客上传权限设置:', allowGuestUpload ? '允许' : '禁止');
+          
+          if (!allowGuestUpload) {
+            console.log('游客上传已禁用，拒绝请求');
+            return new Response(JSON.stringify({ error: '游客上传已禁用，请登录后再试' }), {
               status: 403,
               headers: {
                 'Content-Type': 'application/json',
@@ -310,6 +319,8 @@ export async function onRequest(context) {
               }
             });
           }
+        } else {
+          console.log('用户已登录，允许上传');
         }
 
         console.log('开始处理文件上传');
