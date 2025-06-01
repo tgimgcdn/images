@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>参界图床管理后台登录 - CloudFlare Pages图床管理系统</title>
     <link rel="stylesheet" href="/css/admin.css">
-    <script src="https://recaptcha.net/recaptcha/api.js" async defer></script>
 </head>
 <body>
     <div class="login-container">
@@ -21,7 +20,7 @@
                     <input type="password" id="password" name="password" required>
                 </div>
                 <div id="recaptchaContainer" class="form-group" style="display: none;">
-                    <div class="g-recaptcha" data-sitekey=""></div>
+                    <div id="recaptchaElement"></div>
                 </div>
                 <div class="form-group">
                     <button type="submit" class="login-btn">登录</button>
