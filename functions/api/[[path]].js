@@ -616,6 +616,69 @@ export async function onRequest(context) {
       });
     }
 
+    // 处理 stats/summary 请求 - 获取基本统计数据（不包含访问统计）
+    if (path.toLowerCase() === 'stats/summary') {
+      console.log('处理图片统计数据请求');
+      
+      try {
+        if (!env.DB) {
+          return new Response(JSON.stringify({ error: '数据库未连接' }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 获取图片总数
+        const totalImagesResult = await env.DB.prepare('SELECT COUNT(*) as count FROM images').first();
+        const totalImages = totalImagesResult ? totalImagesResult.count : 0;
+        
+        // 获取图片总大小
+        const totalSizeResult = await env.DB.prepare('SELECT SUM(size) as total_size FROM images').first();
+        const totalSize = totalSizeResult && totalSizeResult.total_size ? totalSizeResult.total_size : 0;
+        
+        // 获取今日上传数量 - 使用UTC时间
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayStr = today.toISOString().split('T')[0] + '%'; // YYYY-MM-DD%
+        
+        const todayUploadsResult = await env.DB.prepare(
+          'SELECT COUNT(*) as count FROM images WHERE created_at LIKE ?'
+        ).bind(todayStr).first();
+        const todayUploads = todayUploadsResult ? todayUploadsResult.count : 0;
+        
+        console.log('统计结果:', {
+          total_images: totalImages,
+          today_uploads: todayUploads,
+          total_size: totalSize
+        });
+        
+        return new Response(JSON.stringify({
+          total_images: totalImages,
+          today_uploads: todayUploads,
+          total_size: totalSize
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } catch (error) {
+        console.error('获取统计数据失败:', error);
+        return new Response(JSON.stringify({
+          error: '获取统计数据失败'
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+    }
+
     // 处理管理员修改密码请求
     if (path.toLowerCase() === 'admin/change-password') {
       console.log('处理管理员修改密码请求');
