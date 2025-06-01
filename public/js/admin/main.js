@@ -48,18 +48,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 初始化基本页面功能
         console.log('初始化导航');
-        initNavigation();
+    initNavigation();
         
         // 异步初始化其他功能，确保不会阻塞UI
         setTimeout(() => {
             console.log('初始化控制面板');
-            initDashboard();
+    initDashboard();
             console.log('初始化图片管理');
-            initImageManagement();
+    initImageManagement();
             console.log('初始化批量操作');
             initBatchOperations();
             console.log('初始化系统设置');
-            initSettings();
+    initSettings();
             
             // 添加图片复选框变化事件委托
             document.addEventListener('change', function(e) {
@@ -492,7 +492,7 @@ function initNavigation() {
         try {
             // 直接使用原生 cookie API 删除 session_id cookie
             document.cookie = 'session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-            window.location.href = '/admin/login.html';
+                window.location.href = '/admin/login.html';
         } catch (error) {
             console.error('退出登录失败:', error);
         }
@@ -503,7 +503,8 @@ function initNavigation() {
 async function initDashboard() {
     try {
         // 获取统计数据
-
+        const stats = await safeApiCall('/api/stats/summary');
+        
         if (stats.error) {
             showToast(`加载统计数据失败: ${stats.error}`, 'error');
             // 使用默认值
@@ -511,7 +512,7 @@ async function initDashboard() {
             document.getElementById('todayUploads').textContent = '-';
             document.getElementById('totalSize').textContent = '-';
         } else {
-            // 更新统计卡片 - 只保留图片总数和今日上传
+            // 更新统计卡片
             document.getElementById('totalImages').textContent = stats.total_images || '0';
             document.getElementById('todayUploads').textContent = stats.today_uploads || '0';
             
@@ -523,7 +524,8 @@ async function initDashboard() {
             }
         }
     } catch (error) {
-        console.error('初始化控制面板失败:', error);
+        console.error('加载控制面板数据失败:', error);
+        showToast('加载控制面板数据失败', 'error');
     }
 }
 
@@ -534,17 +536,17 @@ function initImageManagement() {
     const uploadBtn = document.getElementById('uploadBtn');
 
     if (searchInput) {
-        // 搜索功能
-        let searchTimeout;
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
+    // 搜索功能
+    let searchTimeout;
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
                 currentSearch = e.target.value.trim();
-                currentPage = 1;
-                loadImages();
-            }, 300);
-        });
-        
+            currentPage = 1;
+            loadImages();
+        }, 300);
+    });
+
         // 确保回车键也能触发搜索
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -559,19 +561,19 @@ function initImageManagement() {
     }
 
     if (sortSelect) {
-        // 排序功能
-        sortSelect.addEventListener('change', (e) => {
-            currentSort = e.target.value;
-            currentPage = 1;
-            loadImages();
-        });
+    // 排序功能
+    sortSelect.addEventListener('change', (e) => {
+        currentSort = e.target.value;
+        currentPage = 1;
+        loadImages();
+    });
     } else {
         console.warn('未找到排序选择框');
     }
 
     if (uploadBtn) {
-        // 上传按钮
-        uploadBtn.addEventListener('click', () => {
+    // 上传按钮
+    uploadBtn.addEventListener('click', () => {
             const uploadModal = document.getElementById('uploadModal');
             if (uploadModal) {
                 uploadModal.style.display = 'block';
@@ -602,7 +604,7 @@ function initBatchOperations() {
             </div>
             <button id="batchDeleteBtn" class="btn-danger" disabled>
                 <i class="fas fa-trash"></i> 批量删除
-            </button>
+                </button>
         </div>
     `;
     
@@ -817,8 +819,8 @@ async function deleteImage(id) {
         } else {
             console.error('删除图片失败:', response.error);
             showNotification(`删除图片失败: ${response.error || '未知错误'}`, 'error');
-        }
-    } catch (error) {
+                }
+            } catch (error) {
         console.error('删除图片时出错:', error);
         showNotification('删除图片失败: ' + error.message, 'error');
     }
@@ -894,7 +896,7 @@ async function batchDeleteImages() {
             }
             
             showNotification(message, successCount > 0 ? 'success' : 'error');
-        } catch (error) {
+    } catch (error) {
             console.error('批量删除图片失败:', error);
             showNotification('批量删除操作失败: ' + error.message, 'error');
         } finally {
@@ -1033,7 +1035,7 @@ async function loadImages(page = 1, search = '') {
             
             // 设置分页
             setupPagination(data.total, data.page, data.total_pages || Math.ceil(data.total / 36));
-        } else {
+                } else {
             // 没有图片时显示提示
             if (search) {
                 imageGrid.innerHTML = `<div class="no-images">没有找到匹配"${search}"的图片</div>`;
