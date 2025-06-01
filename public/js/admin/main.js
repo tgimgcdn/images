@@ -268,15 +268,152 @@ function initImageManagement() {
     uploadBtn.addEventListener('click', () => {
         document.getElementById('uploadModal').style.display = 'block';
     });
+    
+    // 添加批量操作按钮
+    const toolbar = document.querySelector('.toolbar');
+    const batchOperationsDiv = document.createElement('div');
+    batchOperationsDiv.className = 'batch-operations';
+    batchOperationsDiv.innerHTML = `
+        <label class="select-all-container">
+            <input type="checkbox" id="selectAllCheckbox">
+            <span>全选</span>
+        </label>
+        <button class="btn btn-danger" id="batchDeleteBtn" disabled>
+            <i class="fas fa-trash"></i>
+            批量删除
+        </button>
+    `;
+    
+    toolbar.appendChild(batchOperationsDiv);
+    
+    // 全选功能
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    selectAllCheckbox.addEventListener('change', () => {
+        const checkboxes = document.querySelectorAll('.image-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = selectAllCheckbox.checked;
+        });
+        updateBatchOperationButtons();
+    });
+    
+    // 批量删除功能
+    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+    batchDeleteBtn.addEventListener('click', () => {
+        const selectedIds = getSelectedImageIds();
+        if (selectedIds.length > 0) {
+            if (confirm(`确定要删除选中的 ${selectedIds.length} 张图片吗？`)) {
+                batchDeleteImages(selectedIds);
+            }
+        }
+    });
+    
+    // 添加委托事件监听，处理复选框变化
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('image-checkbox')) {
+            updateBatchOperationButtons();
+        }
+    });
 
     // 初始加载图片
     loadImages();
 }
 
+// 获取选中的图片ID
+function getSelectedImageIds() {
+    const checkboxes = document.querySelectorAll('.image-checkbox:checked');
+    return Array.from(checkboxes).map(checkbox => checkbox.dataset.id);
+}
+
+// 更新批量操作按钮状态
+function updateBatchOperationButtons() {
+    const selectedIds = getSelectedImageIds();
+    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+    
+    if (selectedIds.length > 0) {
+        batchDeleteBtn.disabled = false;
+        batchDeleteBtn.textContent = `删除选中(${selectedIds.length})`;
+    } else {
+        batchDeleteBtn.disabled = true;
+        batchDeleteBtn.innerHTML = `<i class="fas fa-trash"></i> 批量删除`;
+    }
+    
+    // 更新全选复选框状态
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const allCheckboxes = document.querySelectorAll('.image-checkbox');
+    
+    if (allCheckboxes.length > 0 && selectedIds.length === allCheckboxes.length) {
+        selectAllCheckbox.checked = true;
+        selectAllCheckbox.indeterminate = false;
+    } else if (selectedIds.length > 0) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = true;
+    } else {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    }
+}
+
+// 批量删除图片
+async function batchDeleteImages(ids) {
+    try {
+        // 显示加载状态
+        const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+        const originalText = batchDeleteBtn.innerHTML;
+        batchDeleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 删除中...';
+        batchDeleteBtn.disabled = true;
+        
+        let successCount = 0;
+        let failCount = 0;
+        
+        // 顺序删除每个图片
+        for (const id of ids) {
+            try {
+                const response = await fetch(`/api/images/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            } catch (error) {
+                console.error(`删除图片 ${id} 失败:`, error);
+                failCount++;
+            }
+        }
+        
+        // 恢复按钮状态
+        batchDeleteBtn.innerHTML = originalText;
+        batchDeleteBtn.disabled = false;
+        
+        // 显示结果
+        if (failCount === 0) {
+            showToast(`成功删除 ${successCount} 张图片`, 'success');
+        } else {
+            showToast(`删除完成: ${successCount} 成功, ${failCount} 失败`, 'warning');
+        }
+        
+        // 重新加载图片列表
+        loadImages();
+    } catch (error) {
+        console.error('批量删除图片失败:', error);
+        showToast('批量删除失败', 'error');
+        
+        // 恢复按钮状态
+        const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+        batchDeleteBtn.innerHTML = '<i class="fas fa-trash"></i> 批量删除';
+        batchDeleteBtn.disabled = false;
+    }
+}
+
 async function loadImages() {
     try {
+        // 设置每页显示36张图片（6行×6列）
+        const limit = 36;
         const data = await safeApiCall(
-            `/api/images?page=${currentPage}&sort=${currentSort}&search=${currentSearch}`
+            `/api/images?page=${currentPage}&limit=${limit}&sort=${currentSort}&search=${currentSearch}`
         );
         
         if (data.error) {
@@ -309,20 +446,28 @@ async function loadImages() {
 function createImageCard(image) {
     const card = document.createElement('div');
     card.className = 'image-card';
+    
+    // 截断文件名，超过18个字符显示...
+    const truncatedName = image.name.length > 18 ? image.name.substring(0, 15) + '...' : image.name;
+    
     card.innerHTML = `
         <div class="image-preview">
             <img src="${image.url}" alt="${image.name}">
         </div>
         <div class="image-info">
-            <h3>${image.name}</h3>
+            <h3 title="${image.name}">
+                <span class="checkbox-container">
+                    <input type="checkbox" class="image-checkbox" data-id="${image.id}">
+                </span>
+                ${truncatedName}
+            </h3>
             <p class="image-meta">
-                <span>${formatDate(image.upload_time)}</span>
-                <span>${formatFileSize(image.size)}</span>
+                ${formatDate(image.upload_time)}
             </p>
             <div class="image-actions">
                 <button class="btn btn-primary copy-btn" data-url="${image.url}">
                     <i class="fas fa-copy"></i>
-                    复制链接
+                    复制
                 </button>
                 <button class="btn btn-danger delete-btn" data-id="${image.id}">
                     <i class="fas fa-trash"></i>
@@ -331,6 +476,39 @@ function createImageCard(image) {
             </div>
         </div>
     `;
+    
+    // 添加悬停文件名显示全名的功能
+    const filename = card.querySelector('h3');
+    filename.addEventListener('mouseenter', (e) => {
+        if (image.name.length > 18) {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'image-filename-tooltip';
+            tooltip.textContent = image.name;
+            tooltip.style.top = `${e.target.offsetTop + e.target.offsetHeight}px`;
+            tooltip.style.left = `${e.target.offsetLeft}px`;
+            document.body.appendChild(tooltip);
+            
+            // 显示工具提示
+            setTimeout(() => {
+                tooltip.style.opacity = '1';
+            }, 10);
+            
+            // 保存工具提示引用
+            e.target.tooltip = tooltip;
+        }
+    });
+    
+    filename.addEventListener('mouseleave', (e) => {
+        if (e.target.tooltip) {
+            e.target.tooltip.style.opacity = '0';
+            setTimeout(() => {
+                if (e.target.tooltip && e.target.tooltip.parentNode) {
+                    e.target.tooltip.parentNode.removeChild(e.target.tooltip);
+                }
+                e.target.tooltip = null;
+            }, 300);
+        }
+    });
     
     // 添加事件监听器
     card.querySelector('.copy-btn').addEventListener('click', (e) => {
