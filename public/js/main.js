@@ -79,6 +79,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (existingFileList) {
             existingFileList.remove();
         }
+        
+        // 清除现有的确认上传按钮
+        const existingUploadBtn = document.querySelector('.confirm-upload-btn');
+        if (existingUploadBtn) {
+            existingUploadBtn.remove();
+        }
 
         // 创建文件列表容器
         const fileList = document.createElement('div');
