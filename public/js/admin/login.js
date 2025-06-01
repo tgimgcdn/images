@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const recaptchaElement = document.querySelector('.g-recaptcha');
 
     console.log('登录页面已加载');
+    console.log('当前Cookie:', document.cookie);
 
     // 检查是否已经登录，如果已登录则直接跳转到管理后台
     if (document.cookie.includes('session_id=')) {
@@ -63,13 +64,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             const data = await response.json();
             console.log('响应数据:', data);
 
-            if (response.ok) {
-                // 登录成功，跳转到管理后台
-                console.log('登录成功，即将跳转');
-                // 等待一小段时间确保cookie已设置
+            if (response.ok && data.success) {
+                // 登录成功，记录会话ID和用户信息
+                console.log('登录成功，服务器返回的会话ID:', data.sessionId);
+                console.log('登录后的Cookie:', document.cookie);
+                
+                // 如果cookie没有正确设置，手动设置它
+                if (!document.cookie.includes('session_id=')) {
+                    console.log('尝试手动设置cookie');
+                    document.cookie = `session_id=${data.sessionId}; path=/`;
+                    console.log('手动设置后的Cookie:', document.cookie);
+                }
+
+                // 等待一小段时间确保cookie已设置，然后跳转
                 setTimeout(() => {
+                    console.log('跳转前的Cookie:', document.cookie);
                     window.location.href = '/admin/';
-                }, 500);
+                }, 1000);
             } else {
                 // 显示错误信息
                 errorMessage.textContent = data.error || '登录失败';
