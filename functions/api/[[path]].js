@@ -1,6 +1,5 @@
 import { Octokit } from 'octokit';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -127,7 +126,7 @@ export async function onRequest(context) {
         }
         
         console.log('登录成功，创建会话');
-        // 创建会话
+        // 创建会话，使用 Web Crypto API 的 randomUUID 方法
         const sessionId = crypto.randomUUID();
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 7); // 7天后过期
