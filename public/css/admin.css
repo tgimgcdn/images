@@ -384,6 +384,9 @@ body {
     justify-content: center;
     gap: 5px;
     transition: all 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .btn-copy {
@@ -658,9 +661,48 @@ input:checked + .slider:before {
     }
     
     /* 确保图片信息在移动端更紧凑 */
-    .image-actions .btn {
-        padding: 6px 8px;
+    .image-actions {
+        flex-direction: row;
+        justify-content: space-between;
+        padding: 6px;
+    }
+    
+    .image-actions button,
+    .image-actions .dropdown-toggle {
         font-size: 11px;
+        padding: 5px;
+        white-space: nowrap;
+    }
+    
+    /* 确保移动端下拉菜单正确显示 */
+    .dropdown-menu {
+        position: fixed; /* 使用固定定位 */
+        left: auto;
+        right: auto;
+        top: auto;
+        bottom: auto;
+        z-index: 9999; /* 高z-index确保显示在最上层 */
+        max-width: 90vw; /* 限制宽度不超过视口 */
+    }
+    
+    /* 增加复制和删除按钮的区分度 */
+    .btn-copy {
+        background-color: var(--primary-color);
+        color: white;
+        width: calc(100% - 2px); /* 确保不会被挤压 */
+        max-width: none;
+    }
+    
+    .btn-delete {
+        background-color: var(--danger-color);
+        color: white;
+        width: calc(100% - 2px); /* 确保不会被挤压 */
+        max-width: none;
+    }
+    
+    /* 确保文件名在移动端不会被截断 */
+    .image-filename {
+        max-width: calc(100% - 25px);
     }
     
     .image-info h3 {
@@ -1059,7 +1101,7 @@ input:checked + .slider:before {
     position: absolute;
     top: 100%;
     left: 0;
-    z-index: 1500;
+    z-index: 9999;
     display: none;
     min-width: 120px;
     padding: 5px 0;
@@ -1073,7 +1115,6 @@ input:checked + .slider:before {
 
 .dropdown-menu.show {
     display: block;
-    z-index: 9999;
 }
 
 .dropdown-item {
@@ -1108,10 +1149,13 @@ input:checked + .slider:before {
 
 @media (max-width: 768px) {
     .dropdown-menu {
-        position: absolute;
+        position: fixed;
+        left: auto;
+        right: auto;
         top: auto;
-        bottom: 100%;
-        left: 0;
+        bottom: auto;
+        z-index: 9999;
+        max-width: 90vw;
     }
 
     .batch-copy-dropdown .dropdown-menu {
@@ -1132,7 +1176,7 @@ input:checked + .slider:before {
 }
 
 .global-dropdown-menu {
-    position: fixed; /* 使用fixed定位 */
+    position: fixed;
     min-width: 150px;
     background-color: #fff;
     border-radius: 4px;
@@ -1140,8 +1184,9 @@ input:checked + .slider:before {
     padding: 5px 0;
     pointer-events: auto;
     font-size: 14px;
-    max-height: 80vh; /* 防止菜单过长 */
+    max-height: 80vh;
     overflow-y: auto;
+    z-index: 10000;
 }
 
 .global-dropdown-menu .dropdown-item {
@@ -1164,5 +1209,5 @@ input:checked + .slider:before {
 }
 
 .dropdown-toggle.active {
-    background-color: #3a7cbd; /* 当下拉菜单处于打开状态时，按钮颜色加深 */
+    background-color: #3a7cbd;
 } 
