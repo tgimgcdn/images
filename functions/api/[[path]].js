@@ -154,19 +154,26 @@ export async function onRequest(context) {
           expiresAt.toISOString()
         ).run();
         
-        // 设置 cookie - 使用简单的格式，避免可能导致问题的选项
+        // 设置 cookie - 使用更可靠的格式
+        // 避免使用任何高级选项，只设置必要的信息
         const cookieHeader = `session_id=${sessionId}; Path=/`;
         
         console.log('设置Cookie:', cookieHeader);
         
-        return new Response(JSON.stringify({ 
+        // 创建响应
+        const responseBody = JSON.stringify({ 
           success: true,
           message: '登录成功',
+          sessionId: sessionId,  // 添加会话ID以便调试
           user: {
             id: user.id,
             username: user.username
           }
-        }), {
+        });
+        
+        console.log('登录响应:', responseBody);
+        
+        return new Response(responseBody, {
           headers: {
             'Content-Type': 'application/json',
             'Set-Cookie': cookieHeader,
