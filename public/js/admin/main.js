@@ -1119,6 +1119,25 @@ function createImageCard(image) {
             }
         });
         
+        // 确保下拉菜单完全可见
+        // 检查是否在右侧有足够空间，如果没有则向左打开
+        setTimeout(() => {
+            const rect = dropdownMenu.getBoundingClientRect();
+            if (rect.right > window.innerWidth) {
+                dropdownMenu.style.left = 'auto';
+                dropdownMenu.style.right = '0';
+            } else {
+                dropdownMenu.style.left = '0';
+                dropdownMenu.style.right = 'auto';
+            }
+            
+            // 检查是否在底部有足够空间，如果没有则向上打开
+            if (rect.bottom > window.innerHeight) {
+                dropdownMenu.style.top = 'auto';
+                dropdownMenu.style.bottom = '100%';
+            }
+        }, 0);
+        
         // 切换当前下拉菜单
         dropdownMenu.classList.toggle('show');
     });
