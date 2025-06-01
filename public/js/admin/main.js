@@ -502,30 +502,13 @@ function initNavigation() {
 // 控制面板功能
 async function initDashboard() {
     try {
-        // 获取统计数据
-        const stats = await safeApiCall('/api/stats/summary');
-        
-        if (stats.error) {
-            showToast(`加载统计数据失败: ${stats.error}`, 'error');
-            // 使用默认值
-            document.getElementById('totalImages').textContent = '-';
-            document.getElementById('todayUploads').textContent = '-';
-            document.getElementById('totalSize').textContent = '-';
-        } else {
-            // 更新统计卡片 - 只保留图片总数和今日上传
-            document.getElementById('totalImages').textContent = stats.total_images || '0';
-            document.getElementById('todayUploads').textContent = stats.today_uploads || '0';
-            
-            // 处理并显示图片总大小，保留2位小数
-            const totalSizeElement = document.getElementById('totalSize');
-            if (totalSizeElement) {
-                const sizeInBytes = stats.total_size || 0;
-                totalSizeElement.textContent = formatFileSize(sizeInBytes, 2);
-            }
-        }
+        // 保留展示结构，但不再从API获取数据
+        // 设置默认值
+        document.getElementById('totalImages').textContent = '-';
+        document.getElementById('todayUploads').textContent = '-';
+        document.getElementById('totalSize').textContent = '-';
     } catch (error) {
-        console.error('加载控制面板数据失败:', error);
-        showToast('加载控制面板数据失败', 'error');
+        console.error('初始化控制面板失败:', error);
     }
 }
 
@@ -757,32 +740,12 @@ document.addEventListener('click', function(e) {
 
 // 添加一个新函数，用于单独更新控制面板上的统计数据
 async function updateDashboardStats() {
+    // 此函数已被简化，不再调用API
     try {
-        // 获取统计数据
-        const stats = await safeApiCall('/api/stats/summary');
-        
-        if (stats.error) {
-            console.error('更新统计数据失败:', stats.error);
-            return;
-        }
-        
-        // 更新统计卡片
-        const totalImagesElement = document.getElementById('totalImages');
-        const todayUploadsElement = document.getElementById('todayUploads');
-        const totalSizeElement = document.getElementById('totalSize');
-        
-        if (totalImagesElement) {
-            totalImagesElement.textContent = stats.total_images || '0';
-        }
-        
-        if (todayUploadsElement) {
-            todayUploadsElement.textContent = stats.today_uploads || '0';
-        }
-        
-        if (totalSizeElement) {
-            const sizeInBytes = stats.total_size || 0;
-            totalSizeElement.textContent = formatFileSize(sizeInBytes, 2);
-        }
+        // 在删除图片后，简单地刷新为默认值
+        document.getElementById('totalImages').textContent = '-';
+        document.getElementById('todayUploads').textContent = '-';
+        document.getElementById('totalSize').textContent = '-';
     } catch (error) {
         console.error('更新控制面板统计数据失败:', error);
     }
