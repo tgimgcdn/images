@@ -254,7 +254,7 @@ body {
 
 .image-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr); /* 每行6个方格 */
+    grid-template-columns: repeat(6, 1fr); /* 默认每行6个方格 */
     gap: 15px;
     margin-bottom: 20px;
     width: 100%;
@@ -567,7 +567,7 @@ input:checked + .slider:before {
     color: #666;
 }
 
-/* 响应式设计 */
+/* 响应式设计优化 */
 @media (max-width: 768px) {
     .admin-nav {
         width: 60px;
@@ -590,6 +590,48 @@ input:checked + .slider:before {
     .toolbar {
         flex-direction: column;
         align-items: stretch;
+        gap: 10px;
+    }
+    
+    /* 修改移动端图片网格布局 */
+    .image-grid {
+        grid-template-columns: repeat(2, 1fr); /* 手机端每行2个 */
+        gap: 10px;
+    }
+    
+    /* 调整批量操作按钮在移动端的显示 */
+    .batch-operations {
+        flex-direction: row;
+        justify-content: space-between;
+        width: 100%;
+    }
+    
+    /* 确保图片信息在移动端更紧凑 */
+    .image-actions .btn {
+        padding: 6px 8px;
+        font-size: 11px;
+    }
+    
+    .image-info h3 {
+        font-size: 12px;
+    }
+    
+    .image-meta {
+        font-size: 10px;
+    }
+}
+
+/* 平板电脑尺寸 */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .image-grid {
+        grid-template-columns: repeat(3, 1fr); /* 平板端每行3个 */
+    }
+}
+
+/* 中等尺寸屏幕 */
+@media (min-width: 1025px) and (max-width: 1366px) {
+    .image-grid {
+        grid-template-columns: repeat(4, 1fr); /* 中等屏幕每行4个 */
     }
 }
 
@@ -748,4 +790,87 @@ input:checked + .slider:before {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* 原图预览样式 */
+.fullsize-preview {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.fullsize-preview.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.fullsize-preview img {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.fullsize-preview .close-preview {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: white;
+    font-size: 24px;
+    background: rgba(0, 0, 0, 0.5);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    border: none;
+}
+
+.fullsize-preview .image-info-panel {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: center;
+}
+
+/* 鼠标悬停效果增强 */
+.image-preview {
+    position: relative;
+}
+
+.image-preview::after {
+    content: "👁️ 查看原图";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 8px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    font-size: 12px;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.image-preview:hover::after {
+    opacity: 1;
 } 
