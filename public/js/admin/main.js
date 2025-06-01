@@ -740,12 +740,32 @@ document.addEventListener('click', function(e) {
 
 // 添加一个新函数，用于单独更新控制面板上的统计数据
 async function updateDashboardStats() {
-    // 此函数已被简化，不再调用API
     try {
-        // 在删除图片后，简单地刷新为默认值
-        document.getElementById('totalImages').textContent = '-';
-        document.getElementById('todayUploads').textContent = '-';
-        document.getElementById('totalSize').textContent = '-';
+        // 获取统计数据
+        const stats = await safeApiCall('/api/stats/summary');
+        
+        if (stats.error) {
+            console.error('更新统计数据失败:', stats.error);
+            return;
+        }
+        
+        // 更新统计卡片
+        const totalImagesElement = document.getElementById('totalImages');
+        const todayUploadsElement = document.getElementById('todayUploads');
+        const totalSizeElement = document.getElementById('totalSize');
+        
+        if (totalImagesElement) {
+            totalImagesElement.textContent = stats.total_images || '0';
+        }
+        
+        if (todayUploadsElement) {
+            todayUploadsElement.textContent = stats.today_uploads || '0';
+        }
+        
+        if (totalSizeElement) {
+            const sizeInBytes = stats.total_size || 0;
+            totalSizeElement.textContent = formatFileSize(sizeInBytes, 2);
+        }
     } catch (error) {
         console.error('更新控制面板统计数据失败:', error);
     }
