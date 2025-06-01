@@ -43,14 +43,9 @@ function initNavigation() {
     // 退出登录
     document.getElementById('logoutBtn').addEventListener('click', async () => {
         try {
-            const response = await fetch('/api/auth/logout', {
-                method: 'POST',
-                credentials: 'include'
-            });
-            
-            if (response.ok) {
-                window.location.href = '/admin/login.html';
-            }
+            // 直接使用原生 cookie API 删除 session_id cookie
+            document.cookie = 'session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            window.location.href = '/admin/login.html';
         } catch (error) {
             console.error('退出登录失败:', error);
         }
