@@ -904,6 +904,9 @@ function createImageCard(image) {
         ? image.filename.substring(0, 18) + '...' 
         : image.filename;
     
+    // 格式化文件大小，保留2位小数
+    const formattedSize = formatFileSize(image.size, 2);
+    
     card.innerHTML = `
         <div class="image-preview">
             <img src="${image.thumbnail_url || image.url}" alt="${image.filename}" loading="lazy">
@@ -913,7 +916,10 @@ function createImageCard(image) {
                 <input type="checkbox" class="image-checkbox" data-id="${image.id}">
                 <span class="image-filename" title="${image.filename}">${displayName}</span>
             </div>
-            <div class="upload-date">${formatDate(image.created_at)}</div>
+            <div class="image-meta">
+                <span class="upload-date">${formatDate(image.created_at)}</span>
+                <span class="file-size">${formattedSize}</span>
+            </div>
         </div>
         <div class="image-actions">
             <button class="btn-copy" data-url="${image.url}" title="复制链接">
@@ -1023,12 +1029,13 @@ function formatDate(timestamp) {
     });
 }
 
-function formatFileSize(bytes) {
+function formatFileSize(bytes, decimals = 2) {
     if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
 function showToast(message, type = 'info') {
