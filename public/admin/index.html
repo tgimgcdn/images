@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理后台 - CloudFlare Pages图床管理系统</title>
+    <title>参界图床管理后台 - CloudFlare Pages图床管理系统</title>
     <link rel="stylesheet" href="/css/admin.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -13,7 +13,7 @@
             <div class="nav-header">
                 <div class="logo">
                     <i class="fas fa-cloud-upload-alt"></i>
-                    <h1>图床管理系统</h1>
+                    <h1>参界图床管理系统</h1>
                 </div>
             </div>
             <ul class="nav-menu">
@@ -174,7 +174,8 @@
                 <div class="upload-area" id="uploadArea">
                     <i class="fas fa-cloud-upload-alt"></i>
                     <p>拖放文件到这里或点击选择文件</p>
-                    <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+                    <small>允许的文件类型: JPEG, PNG, GIF, WebP, SVG, ICO</small>
+                    <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.ico" style="display: none;">
                 </div>
                 <div class="upload-progress" style="display: none;">
                     <div class="progress-bar">
