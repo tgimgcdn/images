@@ -730,6 +730,7 @@ export async function onRequest(context) {
           };
           
           const finalSettings = { ...defaultSettings, ...settingsObj };
+          console.log('返回设置数据:', finalSettings);
           
           return new Response(JSON.stringify(finalSettings), {
             headers: {
@@ -740,9 +741,12 @@ export async function onRequest(context) {
         } else if (request.method === 'POST') {
           // 更新设置
           const data = await request.json();
+          console.log('接收到设置更新请求:', data);
+          
           const updates = [];
           
           for (const [key, value] of Object.entries(data)) {
+            console.log(`更新设置: ${key} = ${value}`);
             updates.push(
               env.DB.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
                 .bind(key, String(value))
@@ -751,8 +755,13 @@ export async function onRequest(context) {
           }
           
           await Promise.all(updates);
+          console.log('设置已成功更新');
           
-          return new Response(JSON.stringify({ success: true }), {
+          return new Response(JSON.stringify({ 
+            success: true,
+            message: '设置已成功保存',
+            data: data
+          }), {
             headers: {
               'Content-Type': 'application/json',
               ...corsHeaders
