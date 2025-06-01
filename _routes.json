@@ -10,6 +10,12 @@
       "module": ["api/[[path]].js:onRequest"]
     },
     {
+      "routePath": "/admin/login.html",
+      "mountPath": "/",
+      "method": "",
+      "module": ["public/admin/login.html"]
+    },
+    {
       "routePath": "/admin/:path*",
       "mountPath": "/admin",
       "method": "",
