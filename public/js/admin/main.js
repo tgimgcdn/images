@@ -89,9 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="close-preview">&times;</button>
             </div>
             <div class="preview-container">
-                <div class="image-wrapper">
-                    <img src="" alt="Full size preview" />
-                </div>
+                <img src="" alt="Full size preview" />
             </div>
             <div class="image-info-panel"></div>
         `;
@@ -101,8 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let currentZoom = 1;
         const zoomStep = 0.2;
         const previewContainer = fullsizePreview.querySelector('.preview-container');
-        const imageWrapper = fullsizePreview.querySelector('.image-wrapper');
-        const previewImg = imageWrapper.querySelector('img');
+        const previewImg = previewContainer.querySelector('img');
         
         // 拖动状态变量
         let isDragging = false;
@@ -113,32 +110,31 @@ document.addEventListener('DOMContentLoaded', () => {
         function resetPreview() {
             currentZoom = 1;
             currentTranslate = { x: 0, y: 0 };
-            updateTransform();
-        }
-        
-        // 更新变换
-        function updateTransform() {
-            imageWrapper.style.transform = `translate(${currentTranslate.x}px, ${currentTranslate.y}px) scale(${currentZoom})`;
-            
-            // 当放大超过1.2倍时，启用拖动样式
-            if (currentZoom > 1.2) {
-                imageWrapper.classList.add('draggable');
-            } else {
-                imageWrapper.classList.remove('draggable');
-            }
+            previewImg.style.transform = `scale(${currentZoom}) translate(${currentTranslate.x / currentZoom}px, ${currentTranslate.y / currentZoom}px)`;
+            previewImg.style.cursor = 'default';
         }
         
         // 缩放按钮功能
         fullsizePreview.querySelector('.zoom-in').addEventListener('click', function(e) {
             e.stopPropagation();
-            currentZoom += zoomStep;
-            updateTransform();
+            currentZoom = Math.min(5, currentZoom + zoomStep);
+            previewImg.style.transform = `scale(${currentZoom}) translate(${currentTranslate.x / currentZoom}px, ${currentTranslate.y / currentZoom}px)`;
+            
+            // 放大时启用拖动样式
+            if (currentZoom > 1.2) {
+                previewImg.style.cursor = 'grab';
+            }
         });
         
         fullsizePreview.querySelector('.zoom-out').addEventListener('click', function(e) {
             e.stopPropagation();
-            currentZoom = Math.max(0.2, currentZoom - zoomStep);
-            updateTransform();
+            currentZoom = Math.max(0.5, currentZoom - zoomStep);
+            previewImg.style.transform = `scale(${currentZoom}) translate(${currentTranslate.x / currentZoom}px, ${currentTranslate.y / currentZoom}px)`;
+            
+            // 缩小到一定程度时关闭拖动样式
+            if (currentZoom <= 1.2) {
+                previewImg.style.cursor = 'default';
+            }
         });
         
         fullsizePreview.querySelector('.zoom-reset').addEventListener('click', function(e) {
@@ -147,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         // 拖动功能
-        imageWrapper.addEventListener('mousedown', function(e) {
+        previewImg.addEventListener('mousedown', function(e) {
             // 只有放大到一定程度才启用拖动
             if (currentZoom <= 1.2) return;
             
@@ -156,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 x: e.clientX - currentTranslate.x,
                 y: e.clientY - currentTranslate.y
             };
-            imageWrapper.style.cursor = 'grabbing';
+            previewImg.style.cursor = 'grabbing';
             e.preventDefault(); // 防止图片被拖拽
         });
         
@@ -168,14 +164,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 y: e.clientY - dragStart.y
             };
             
-            updateTransform();
+            previewImg.style.transform = `scale(${currentZoom}) translate(${currentTranslate.x / currentZoom}px, ${currentTranslate.y / currentZoom}px)`;
         });
         
         document.addEventListener('mouseup', function() {
             if (!isDragging) return;
             
             isDragging = false;
-            imageWrapper.style.cursor = 'grab';
+            previewImg.style.cursor = currentZoom > 1.2 ? 'grab' : 'default';
         });
         
         // 点击关闭按钮隐藏预览
@@ -205,11 +201,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (fullsizePreview.classList.contains('active')) {
                 e.preventDefault();
                 
-                // 获取鼠标相对于图片容器的位置
-                const rect = previewContainer.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
-                
                 // 记录旧的缩放值
                 const oldZoom = currentZoom;
                 
@@ -222,22 +213,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // 如果缩放值没变，则不需要更新变换
                 if (oldZoom === currentZoom) return;
+
+                // 应用缩放
+                previewImg.style.transform = `scale(${currentZoom}) translate(${currentTranslate.x / currentZoom}px, ${currentTranslate.y / currentZoom}px)`;
                 
-                // 计算缩放差值
-                const zoomDelta = currentZoom / oldZoom;
-                
-                // 调整平移以保持鼠标指向的点不变
-                if (zoomDelta !== 1) {
-                    const mouseXRelToCenter = mouseX - previewContainer.clientWidth / 2;
-                    const mouseYRelToCenter = mouseY - previewContainer.clientHeight / 2;
-                    
-                    // 更新平移值，让鼠标指向的点保持静止
-                    currentTranslate.x = currentTranslate.x + mouseXRelToCenter * (1 - zoomDelta);
-                    currentTranslate.y = currentTranslate.y + mouseYRelToCenter * (1 - zoomDelta);
-                }
-                
-                // 更新变换
-                updateTransform();
+                // 更新鼠标样式
+                previewImg.style.cursor = currentZoom > 1.2 ? 'grab' : 'default';
             }
         }, { passive: false });
     } catch (error) {
@@ -960,11 +941,9 @@ function createImageCard(image) {
         const fullsizePreview = document.querySelector('.fullsize-preview');
         const previewImg = fullsizePreview.querySelector('img');
         const infoPanel = fullsizePreview.querySelector('.image-info-panel');
-        const imageWrapper = fullsizePreview.querySelector('.image-wrapper');
         
         // 重置预览状态
         previewImg.style.transform = '';
-        imageWrapper.style.transform = 'translate(0, 0) scale(1)';
         
         // 设置原图URL
         previewImg.src = image.url;
