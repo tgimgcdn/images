@@ -10,6 +10,7 @@ let allowedFileTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'i
 // 批量删除相关变量和函数
 let selectAllCheckbox;
 let batchDeleteButton;
+let imageGrid; // 定义全局变量，用于引用图片网格
 
 // DOM 加载完成后执行
 document.addEventListener('DOMContentLoaded', () => {
@@ -22,6 +23,30 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.add('debug-mode');
         }
 
+        // 获取图片网格和分页元素
+        imageGrid = document.getElementById('imageGrid');
+        
+        // 确保元素存在
+        if (!imageGrid) {
+            console.error('未找到图片网格元素，将创建一个新的');
+            imageGrid = document.createElement('div');
+            imageGrid.id = 'imageGrid';
+            imageGrid.className = 'image-grid';
+            
+            // 尝试找到合适的位置插入这个元素
+            const imagesSection = document.getElementById('images');
+            if (imagesSection) {
+                const toolbar = imagesSection.querySelector('.toolbar');
+                if (toolbar) {
+                    toolbar.after(imageGrid);
+                } else {
+                    imagesSection.appendChild(imageGrid);
+                }
+            } else {
+                document.querySelector('.main-content').appendChild(imageGrid);
+            }
+        }
+
         // 初始化基本页面功能
         console.log('初始化导航');
         initNavigation();
@@ -32,11 +57,20 @@ document.addEventListener('DOMContentLoaded', () => {
             initDashboard();
             console.log('初始化图片管理');
             initImageManagement();
-            console.log('初始化设置');
-            initSettings();
-            console.log('初始化上传模态框');
-            initUploadModal();
-        
+            console.log('初始化批量操作');
+            initBatchOperations();
+            
+            // 添加图片复选框变化事件委托
+            document.addEventListener('change', function(e) {
+                if (e.target.classList.contains('image-checkbox')) {
+                    updateBatchDeleteButtonState();
+                }
+            });
+            
+            // 加载图片列表
+            console.log('加载图片列表');
+            loadImages();
+            
             // 最后尝试加载文件类型，如果失败不影响基本功能
             console.log('加载允许的文件类型');
             loadAllowedFileTypes().catch(err => {
@@ -72,20 +106,126 @@ document.addEventListener('DOMContentLoaded', () => {
                 fullsizePreview.classList.remove('active');
             }
         });
-
-        // 初始化批量操作
-        initBatchOperations();
-        
-        // 添加图片复选框变化事件委托
-        document.addEventListener('change', function(e) {
-            if (e.target.classList.contains('image-checkbox')) {
-                updateBatchDeleteButtonState();
-            }
-        });
     } catch (error) {
         console.error('初始化页面时出错:', error);
     }
 });
+
+// 系统设置功能
+function initSettings() {
+    console.log('初始化系统设置');
+    const settingsForm = document.getElementById('settingsForm');
+    if (!settingsForm) {
+        console.error('未找到设置表单元素');
+        return;
+    }
+    
+    try {
+        // 尝试从API获取当前设置
+        safeApiCall('/api/settings')
+            .then(settings => {
+                if (!settings.error) {
+                    // 更新表单值
+                    const allowGuestUpload = document.getElementById('allowGuestUpload');
+                    const siteName = document.getElementById('siteName');
+                    
+                    if (allowGuestUpload) {
+                        allowGuestUpload.checked = settings.allow_guest_upload === 'true';
+                    }
+                    
+                    if (siteName) {
+                        siteName.value = settings.site_name || '参界图床';
+                    }
+                    
+                    // 添加调试模式开关
+                    addDebugModeToggle();
+                }
+            })
+            .catch(err => {
+                console.error('加载设置失败:', err);
+                showNotification('加载设置失败', 'error');
+                
+                // 即使出错也添加调试模式开关
+                addDebugModeToggle();
+            });
+        
+        // 处理设置表单提交
+        settingsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(settingsForm);
+            const settings = {};
+            
+            for (const [key, value] of formData.entries()) {
+                settings[key] = value === 'on' ? 'true' : value;
+            }
+            
+            try {
+                const response = await safeApiCall('/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                if (!response.error) {
+                    showNotification('设置已保存', 'success');
+                } else {
+                    showNotification('保存设置失败: ' + response.error, 'error');
+                }
+            } catch (error) {
+                showNotification('保存设置失败', 'error');
+                console.error('保存设置出错:', error);
+            }
+        });
+    } catch (error) {
+        console.error('初始化设置功能失败:', error);
+    }
+}
+
+// 添加调试模式开关
+function addDebugModeToggle() {
+    const settingsForm = document.querySelector('.settings-form');
+    if (!settingsForm) return;
+    
+    // 检查是否已经存在调试模式开关
+    if (document.getElementById('debugModeToggle')) return;
+    
+    // 创建调试模式开关元素
+    const debugModeContainer = document.createElement('div');
+    debugModeContainer.className = 'form-group';
+    debugModeContainer.innerHTML = `
+        <div class="switch-label">
+            <span>调试模式</span>
+            <label class="switch">
+                <input type="checkbox" id="debugModeToggle" ${isDebugMode ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
+        </div>
+        <p class="hint">调试模式会显示更多信息，并在没有数据时显示模拟数据</p>
+    `;
+    
+    settingsForm.appendChild(debugModeContainer);
+    
+    // 添加开关事件处理
+    document.getElementById('debugModeToggle').addEventListener('change', (e) => {
+        isDebugMode = e.target.checked;
+        localStorage.setItem('debugMode', isDebugMode);
+        
+        if (isDebugMode) {
+            document.body.classList.add('debug-mode');
+            showNotification('调试模式已启用', 'info');
+        } else {
+            document.body.classList.remove('debug-mode');
+            showNotification('调试模式已关闭', 'info');
+        }
+        
+        // 刷新数据
+        initDashboard();
+        loadImages();
+    });
+}
 
 // 加载允许的文件类型
 async function loadAllowedFileTypes() {
@@ -289,31 +429,45 @@ function initImageManagement() {
     const sortSelect = document.getElementById('sortSelect');
     const uploadBtn = document.getElementById('uploadBtn');
 
-    // 搜索功能
-    let searchTimeout;
-    searchInput.addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            currentSearch = e.target.value;
+    if (searchInput) {
+        // 搜索功能
+        let searchTimeout;
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentSearch = e.target.value;
+                currentPage = 1;
+                loadImages();
+            }, 300);
+        });
+    } else {
+        console.warn('未找到搜索输入框');
+    }
+
+    if (sortSelect) {
+        // 排序功能
+        sortSelect.addEventListener('change', (e) => {
+            currentSort = e.target.value;
             currentPage = 1;
             loadImages();
-        }, 300);
-    });
+        });
+    } else {
+        console.warn('未找到排序选择框');
+    }
 
-    // 排序功能
-    sortSelect.addEventListener('change', (e) => {
-        currentSort = e.target.value;
-        currentPage = 1;
-        loadImages();
-    });
-
-    // 上传按钮
-    uploadBtn.addEventListener('click', () => {
-        document.getElementById('uploadModal').style.display = 'block';
-    });
-    
-    // 初始加载图片
-    loadImages();
+    if (uploadBtn) {
+        // 上传按钮
+        uploadBtn.addEventListener('click', () => {
+            const uploadModal = document.getElementById('uploadModal');
+            if (uploadModal) {
+                uploadModal.style.display = 'block';
+            } else {
+                console.error('未找到上传模态框');
+            }
+        });
+    } else {
+        console.warn('未找到上传按钮');
+    }
 }
 
 // 初始化批量操作按钮
@@ -337,9 +491,11 @@ function initBatchOperations() {
         imageSection.insertBefore(batchOpsToolbar, imageSection.firstChild);
     } else {
         // 如果找不到.image-section，则插入到图片网格上方
-        const imageGrid = document.getElementById('imageGrid');
         if (imageGrid && imageGrid.parentNode) {
             imageGrid.parentNode.insertBefore(batchOpsToolbar, imageGrid);
+        } else {
+            console.warn('无法找到合适的位置插入批量操作工具栏');
+            return; // 提前退出，避免后续出错
         }
     }
     
@@ -347,18 +503,26 @@ function initBatchOperations() {
     selectAllCheckbox = document.getElementById('selectAllImages');
     batchDeleteButton = document.getElementById('batchDeleteBtn');
     
-    // 添加全选事件监听
-    selectAllCheckbox.addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('.image-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = selectAllCheckbox.checked;
+    if (selectAllCheckbox) {
+        // 添加全选事件监听
+        selectAllCheckbox.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.image-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            
+            updateBatchDeleteButtonState();
         });
-        
-        updateBatchDeleteButtonState();
-    });
+    } else {
+        console.warn('未找到全选复选框元素');
+    }
     
-    // 添加批量删除事件监听
-    batchDeleteButton.addEventListener('click', batchDeleteImages);
+    if (batchDeleteButton) {
+        // 添加批量删除事件监听
+        batchDeleteButton.addEventListener('click', batchDeleteImages);
+    } else {
+        console.warn('未找到批量删除按钮元素');
+    }
 }
 
 // 更新批量删除按钮状态
@@ -418,8 +582,11 @@ async function batchDeleteImages() {
             
             // 如果所有图片都被删除了，显示无图片提示
             if (document.querySelectorAll('.image-card').length === 0) {
-                document.getElementById('imageGrid').innerHTML = '<div class="no-images">暂无图片</div>';
-                document.getElementById('pagination').innerHTML = '';
+                imageGrid.innerHTML = '<div class="no-images">暂无图片</div>';
+                const paginationContainer = document.getElementById('pagination');
+                if (paginationContainer) {
+                    paginationContainer.innerHTML = '';
+                }
             }
             
             // 显示结果
@@ -461,8 +628,11 @@ async function deleteImage(id) {
             
             // 如果所有图片都被删除了，显示无图片提示
             if (document.querySelectorAll('.image-card').length === 0) {
-                document.getElementById('imageGrid').innerHTML = '<div class="no-images">暂无图片</div>';
-                document.getElementById('pagination').innerHTML = '';
+                imageGrid.innerHTML = '<div class="no-images">暂无图片</div>';
+                const paginationContainer = document.getElementById('pagination');
+                if (paginationContainer) {
+                    paginationContainer.innerHTML = '';
+                }
             }
         } else {
             showNotification('删除图片失败', 'error');
@@ -543,6 +713,11 @@ function setupPagination(total, currentPage, totalPages) {
 }
 
 async function loadImages(page = 1, search = '') {
+    if (!imageGrid) {
+        console.error('图片网格元素不存在');
+        return;
+    }
+    
     try {
         imageGrid.innerHTML = '<div class="loading-spinner"></div>';
         
@@ -552,13 +727,16 @@ async function loadImages(page = 1, search = '') {
             url += `&search=${encodeURIComponent(search)}`;
         }
         
-        const response = await safeApiCall(url);
-        
-        if (!response.ok) {
-            throw new Error(`Failed to load images: ${response.status}`);
+        if (currentSort) {
+            url += `&sort=${currentSort}`;
         }
         
-        const data = await response.json();
+        console.log('加载图片，URL:', url);
+        const data = await safeApiCall(url);
+        
+        if (data.error) {
+            throw new Error(`Failed to load images: ${data.error}`);
+        }
         
         // 清除当前显示
         imageGrid.innerHTML = '';
@@ -566,7 +744,19 @@ async function loadImages(page = 1, search = '') {
         if (data.images && data.images.length > 0) {
             // 显示图片
             data.images.forEach(image => {
-                const card = createImageCard(image);
+                // 修复字段名称不匹配的问题
+                const normalizedImage = {
+                    id: image.id,
+                    filename: image.name || image.filename,
+                    url: image.url,
+                    thumbnail_url: image.thumbnail_url || image.url,
+                    size: image.size,
+                    type: image.type,
+                    views: image.views || 0,
+                    created_at: image.upload_time || image.created_at
+                };
+                
+                const card = createImageCard(normalizedImage);
                 imageGrid.appendChild(card);
             });
             
@@ -574,11 +764,14 @@ async function loadImages(page = 1, search = '') {
             updateBatchDeleteButtonState();
             
             // 设置分页
-            setupPagination(data.total, data.page, data.totalPages);
+            setupPagination(data.total, data.page, data.total_pages || Math.ceil(data.total / 36));
         } else {
             // 没有图片时显示提示
             imageGrid.innerHTML = '<div class="no-images">暂无图片</div>';
-            paginationContainer.innerHTML = '';
+            const paginationContainer = document.getElementById('pagination');
+            if (paginationContainer) {
+                paginationContainer.innerHTML = '';
+            }
         }
     } catch (error) {
         console.error('Error loading images:', error);
@@ -686,6 +879,10 @@ function createImageCard(image) {
 
 // 工具函数
 function formatDate(timestamp) {
+    if (!timestamp) {
+        return '未知日期';
+    }
+    
     // 创建日期对象
     const date = new Date(timestamp);
     
@@ -709,16 +906,6 @@ function formatFileSize(bytes) {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-async function copyToClipboard(text) {
-    try {
-        await navigator.clipboard.writeText(text);
-        showNotification('链接已复制', 'success');
-    } catch (error) {
-        console.error('复制失败:', error);
-        showNotification('复制失败', 'error');
-    }
 }
 
 function showToast(message, type = 'info') {
