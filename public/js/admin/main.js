@@ -9,28 +9,54 @@ let allowedFileTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'i
 
 // DOM 加载完成后执行
 document.addEventListener('DOMContentLoaded', () => {
-    // 检查是否启用调试模式
-    isDebugMode = localStorage.getItem('debugMode') === 'true' || new URLSearchParams(window.location.search).has('debug');
-    if (isDebugMode) {
-        console.log('调试模式已启用');
-        document.body.classList.add('debug-mode');
+    try {
+        console.log('DOM加载完成，开始初始化');
+        // 检查是否启用调试模式
+        isDebugMode = localStorage.getItem('debugMode') === 'true' || new URLSearchParams(window.location.search).has('debug');
+        if (isDebugMode) {
+            console.log('调试模式已启用');
+            document.body.classList.add('debug-mode');
+        }
+
+        // 初始化基本页面功能
+        console.log('初始化导航');
+        initNavigation();
+        
+        // 异步初始化其他功能，确保不会阻塞UI
+        setTimeout(() => {
+            console.log('初始化控制面板');
+            initDashboard();
+            console.log('初始化图片管理');
+            initImageManagement();
+            console.log('初始化设置');
+            initSettings();
+            console.log('初始化上传模态框');
+            initUploadModal();
+        
+            // 最后尝试加载文件类型，如果失败不影响基本功能
+            console.log('加载允许的文件类型');
+            loadAllowedFileTypes().catch(err => {
+                console.error('加载文件类型失败，使用默认值:', err);
+            });
+        }, 100);
+    } catch (error) {
+        console.error('初始化页面时出错:', error);
     }
-
-    // 加载允许的文件类型
-    loadAllowedFileTypes();
-
-    // 初始化页面
-    initNavigation();
-    initDashboard();
-    initImageManagement();
-    initSettings();
-    initUploadModal();
 });
 
 // 加载允许的文件类型
 async function loadAllowedFileTypes() {
     try {
-        const response = await safeApiCall('/api/settings');
+        // 添加超时控制
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await safeApiCall('/api/settings', {
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
         if (!response.error && response.allowed_types) {
             allowedFileTypes = response.allowed_types.split(',');
             console.log('已加载允许的文件类型:', allowedFileTypes);
@@ -38,7 +64,8 @@ async function loadAllowedFileTypes() {
             console.log('使用默认的允许文件类型:', allowedFileTypes);
         }
     } catch (error) {
-        console.error('加载允许的文件类型失败:', error);
+        console.error('加载允许的文件类型失败，使用默认值:', error);
+        // 出错不影响继续使用默认值
     }
 }
 
@@ -50,22 +77,46 @@ async function safeApiCall(url, options = {}) {
             url = url.includes('?') ? `${url}&debug=true` : `${url}?debug=true`;
         }
         
-        const response = await fetch(url, {
-            ...options,
+        // 提取自定义选项
+        const { timeout, ...fetchOptions } = options;
+        const requestTimeout = timeout || 10000; // 默认10秒
+        
+        // 设置请求选项
+        const finalOptions = {
+            ...fetchOptions,
             credentials: 'include',
             headers: {
-                ...options.headers,
+                ...fetchOptions.headers,
                 'X-Debug-Mode': isDebugMode ? 'true' : 'false'
             }
-        });
+        };
         
-        if (!response.ok) {
-            console.error(`API错误: ${url} 返回状态码 ${response.status}`);
-            return { error: `服务器错误 (${response.status})` };
+        // 添加超时处理
+        const controller = new AbortController();
+        if (!finalOptions.signal) {
+            finalOptions.signal = controller.signal;
         }
+        const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
         
-        return await response.json();
+        try {
+            const response = await fetch(url, finalOptions);
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                console.error(`API错误: ${url} 返回状态码 ${response.status}`);
+                return { error: `服务器错误 (${response.status})` };
+            }
+            
+            return await response.json();
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            throw fetchError;
+        }
     } catch (error) {
+        if (error.name === 'AbortError') {
+            console.error(`API请求超时: ${url}`);
+            return { error: '请求超时，请稍后再试' };
+        }
         console.error(`API调用错误:`, error);
         return { error: '网络请求失败，请检查连接' };
     }
@@ -477,57 +528,76 @@ async function handleFiles(files) {
     uploadProgress.style.display = 'block';
     
     for (const file of files) {
-        // 检查文件类型是否在允许列表中
-        if (!allowedFileTypes.includes(file.type)) {
-            showToast(`不支持的文件类型: ${file.type}。允许的类型: ${allowedFileTypes.join(', ')}`, 'error');
-            continue;
-        }
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        
+        // 检查文件类型是否在允许列表中 - 添加更健壮的检查
         try {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', '/api/upload', true);
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    progressBar.style.width = percent + '%';
-                    progressText.textContent = percent + '%';
-                    
-                    const speed = e.loaded / ((Date.now() - startTime) / 1000);
-                    progressSpeed.textContent = formatFileSize(speed) + '/s';
+            if (!file || !file.type) {
+                showToast(`文件类型无效`, 'error');
+                continue;
+            }
+            
+            // 默认基本检查 - 确保是图片文件
+            if (!file.type.startsWith('image/')) {
+                showToast(`只支持图片文件，当前文件类型: ${file.type}`, 'error');
+                continue;
+            }
+            
+            // 如果有具体的类型限制，进行精确匹配
+            if (allowedFileTypes && allowedFileTypes.length > 0) {
+                if (!allowedFileTypes.includes(file.type)) {
+                    showToast(`不支持的文件类型: ${file.type}。允许的类型: ${allowedFileTypes.join(', ')}`, 'error');
+                    continue;
                 }
-            };
+            }
             
-            const startTime = Date.now();
+            const formData = new FormData();
+            formData.append('file', file);
             
-            xhr.onload = async () => {
-                if (xhr.status === 200) {
-                    showToast('上传成功', 'success');
-                    loadImages();
-                } else {
-                    let errorMsg = '上传失败';
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.error) {
-                            errorMsg = response.error;
-                        }
-                    } catch (e) {
-                        console.error('解析响应失败:', e);
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/upload', true);
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        progressBar.style.width = percent + '%';
+                        progressText.textContent = percent + '%';
+                        
+                        const speed = e.loaded / ((Date.now() - startTime) / 1000);
+                        progressSpeed.textContent = formatFileSize(speed) + '/s';
                     }
-                    showToast(errorMsg, 'error');
-                }
-            };
-            
-            xhr.onerror = () => {
-                showToast('上传失败，网络错误', 'error');
-            };
-            
-            xhr.send(formData);
+                };
+                
+                const startTime = Date.now();
+                
+                xhr.onload = async () => {
+                    if (xhr.status === 200) {
+                        showToast('上传成功', 'success');
+                        loadImages();
+                    } else {
+                        let errorMsg = '上传失败';
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            if (response.error) {
+                                errorMsg = response.error;
+                            }
+                        } catch (e) {
+                            console.error('解析响应失败:', e);
+                        }
+                        showToast(errorMsg, 'error');
+                    }
+                };
+                
+                xhr.onerror = () => {
+                    showToast('上传失败，网络错误', 'error');
+                };
+                
+                xhr.send(formData);
+            } catch (error) {
+                console.error('上传文件失败:', error);
+                showToast('上传失败: ' + error.message, 'error');
+            }
         } catch (error) {
-            console.error('上传文件失败:', error);
-            showToast('上传失败: ' + error.message, 'error');
+            console.error('处理文件时出错:', error);
+            showToast('处理文件时出错', 'error');
         }
     }
 }
