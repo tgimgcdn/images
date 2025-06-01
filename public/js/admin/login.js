@@ -22,6 +22,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (config.enabled) {
             recaptchaContainer.style.display = 'block';
             recaptchaElement.dataset.sitekey = config.siteKey;
+            console.log('reCAPTCHA已启用');
+        } else {
+            console.log('reCAPTCHA未启用，跳过验证');
         }
     } catch (error) {
         console.error('加载 reCAPTCHA 配置失败:', error);
@@ -33,6 +36,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
+        
+        console.log('登录信息:', {
+            username: username,
+            passwordLength: password.length
+        });
+        
         const recaptchaResponse = recaptchaContainer.style.display !== 'none' 
             ? grecaptcha.getResponse() 
             : null;
@@ -46,7 +55,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         errorMessage.style.display = 'none';
 
         try {
-            console.log('发送登录请求');
+            console.log('正在发送登录请求...');
             const response = await fetch('/api/admin/login', {
                 method: 'POST',
                 headers: {
@@ -60,13 +69,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 })
             });
 
-            console.log('接收到登录响应:', response.status);
+            console.log('接收到登录响应状态码:', response.status);
             const data = await response.json();
-            console.log('响应数据:', data);
+            console.log('登录响应:', data);
 
             if (response.ok && data.success) {
                 // 登录成功，记录会话ID和用户信息
-                console.log('登录成功，服务器返回的会话ID:', data.sessionId);
+                console.log('登录成功!');
+                console.log('服务器返回的会话ID:', data.sessionId);
                 console.log('登录后的Cookie:', document.cookie);
                 
                 // 如果cookie没有正确设置，手动设置它
@@ -83,8 +93,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }, 1000);
             } else {
                 // 显示错误信息
+                console.log('登录失败:', data.error || '未知错误');
                 errorMessage.textContent = data.error || '登录失败';
                 errorMessage.style.display = 'block';
+                
+                // 提醒用户正确的默认密码
+                if (data.error === '用户名或密码错误' && username === 'admin') {
+                    console.log('提示：默认管理员密码是 admin123');
+                    errorMessage.textContent += '，默认管理员密码是 admin123';
+                }
                 
                 // 如果启用了 reCAPTCHA，重置验证
                 if (recaptchaContainer.style.display !== 'none') {
