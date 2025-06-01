@@ -303,11 +303,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 禁用上传功能
     function disableUpload() {
-        // 移除所有上传相关的事件监听器
-        dropZone.removeEventListener('dragover', handleDragOver);
-        dropZone.removeEventListener('dragleave', handleDragLeave);
-        dropZone.removeEventListener('drop', handleFileDrop);
-        dropZone.removeEventListener('click', triggerFileInput);
+        // 不再尝试移除特定的事件监听器，而是替换整个dropZone的事件
+        
+        // 创建新的拖放防止事件 - 这会阻止任何拖放操作
+        const preventDrag = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        };
+        
+        // 添加事件处理程序来阻止任何拖放操作
+        dropZone.addEventListener('dragover', preventDrag);
+        dropZone.addEventListener('dragenter', preventDrag);
+        dropZone.addEventListener('dragleave', preventDrag);
+        dropZone.addEventListener('drop', preventDrag);
+        
+        // 阻止点击事件触发文件选择
+        dropZone.addEventListener('click', preventDrag);
         
         // 禁用文件输入框
         const fileInput = document.getElementById('fileInput');
