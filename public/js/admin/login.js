@@ -15,19 +15,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 检查是否启用了 reCAPTCHA
+    let recaptchaEnabled = false;
     try {
         const response = await fetch('/api/admin/recaptcha-config');
-        const config = await response.json();
-        
-        if (config.enabled) {
-            recaptchaContainer.style.display = 'block';
-            recaptchaElement.dataset.sitekey = config.siteKey;
-            console.log('reCAPTCHA已启用');
+        if (response.ok) {
+            const config = await response.json();
+            
+            if (config.enabled && config.siteKey) {
+                recaptchaEnabled = true;
+                recaptchaContainer.style.display = 'block';
+                recaptchaElement.setAttribute('data-sitekey', config.siteKey);
+                console.log('reCAPTCHA已启用，站点密钥:', config.siteKey);
+            } else {
+                console.log('reCAPTCHA未启用或配置不完整');
+            }
         } else {
-            console.log('reCAPTCHA未启用，跳过验证');
+            console.log('无法获取reCAPTCHA配置，API响应:', response.status);
         }
     } catch (error) {
         console.error('加载 reCAPTCHA 配置失败:', error);
+    }
+    
+    if (!recaptchaEnabled) {
+        console.log('reCAPTCHA未启用，跳过验证');
+        recaptchaContainer.style.display = 'none';
     }
 
     loginForm.addEventListener('submit', async (e) => {
@@ -42,8 +53,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             passwordLength: password.length
         });
         
-        const recaptchaResponse = recaptchaContainer.style.display !== 'none' 
-            ? grecaptcha.getResponse() 
+        // 只在reCAPTCHA启用且可见时才获取响应
+        const recaptchaResponse = recaptchaEnabled && recaptchaContainer.style.display !== 'none' 
+            ? (window.grecaptcha ? grecaptcha.getResponse() : null)
             : null;
 
         // 显示加载状态
@@ -104,7 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 
                 // 如果启用了 reCAPTCHA，重置验证
-                if (recaptchaContainer.style.display !== 'none') {
+                if (recaptchaEnabled && window.grecaptcha) {
                     grecaptcha.reset();
                 }
             }
