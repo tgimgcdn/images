@@ -14,13 +14,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    // 添加字体回退样式，解决Google字体加载问题
+    const addFontFallback = () => {
+        const style = document.createElement('style');
+        style.textContent = `
+            @font-face {
+                font-family: 'Roboto';
+                font-style: normal;
+                font-weight: 400;
+                src: local('Arial'), local('Helvetica'), local('sans-serif');
+            }
+            .g-recaptcha iframe, .g-recaptcha div, .g-recaptcha span, .g-recaptcha * {
+                font-family: Arial, Helvetica, sans-serif !important;
+            }
+        `;
+        document.head.appendChild(style);
+        console.log('添加了字体回退样式');
+    };
+
+    // 先添加字体回退
+    addFontFallback();
+
     // 动态加载reCAPTCHA脚本的函数
     const loadRecaptchaScript = (siteKey) => {
         return new Promise((resolve, reject) => {
             console.log('开始加载reCAPTCHA脚本，siteKey:', siteKey);
+            
+            // 监听字体加载错误
+            window.addEventListener('error', (e) => {
+                if (e.target.tagName === 'LINK' && e.target.href.includes('fonts.googleapis.com')) {
+                    console.warn('Google字体加载失败，使用本地字体替代');
+                    // 已经在上面添加了字体回退，这里只记录日志
+                }
+            }, true);
+            
             // 创建script元素
             const script = document.createElement('script');
-            script.src = `https://recaptcha.net/recaptcha/api.js?render=explicit`;
+            script.src = `https://recaptcha.net/recaptcha/api.js?render=explicit&hl=zh-CN`;
             script.async = true;
             script.defer = true;
             
@@ -32,10 +62,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (window.grecaptcha && window.grecaptcha.render) {
                         clearInterval(checkRecaptchaLoaded);
                         try {
-                            // 显式渲染reCAPTCHA
+                            // 显式渲染reCAPTCHA，添加更多配置参数
                             const recaptchaId = grecaptcha.render('recaptchaElement', {
                                 'sitekey': siteKey,
-                                'theme': 'light'
+                                'theme': 'light',
+                                'hl': 'zh-CN',
+                                'callback': (response) => {
+                                    console.log('reCAPTCHA验证成功，响应长度:', response.length);
+                                },
+                                'expired-callback': () => {
+                                    console.log('reCAPTCHA验证已过期');
+                                },
+                                'error-callback': () => {
+                                    console.error('reCAPTCHA遇到错误');
+                                }
                             });
                             console.log('reCAPTCHA渲染成功，ID:', recaptchaId);
                             resolve(recaptchaId);
@@ -71,11 +111,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (config.enabled && config.siteKey) {
                 console.log('reCAPTCHA已启用，站点密钥:', config.siteKey);
                 recaptchaEnabled = true;
-                recaptchaContainer.style.display = 'block';
+                recaptchaContainer.style.display = 'flex'; // 改为flex布局实现居中
                 
                 // 加载并初始化reCAPTCHA
                 try {
                     recaptchaId = await loadRecaptchaScript(config.siteKey);
+                    
+                    // 在reCAPTCHA加载后，确保其样式设置正确
+                    setTimeout(() => {
+                        const iframe = document.querySelector('.g-recaptcha iframe');
+                        if (iframe) {
+                            console.log('调整reCAPTCHA iframe样式');
+                            iframe.style.margin = '0 auto';
+                        }
+                    }, 1000);
                 } catch (error) {
                     console.error('初始化reCAPTCHA失败:', error);
                     recaptchaEnabled = false;
