@@ -838,21 +838,6 @@ input:checked + .slider:before {
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden;
-}
-
-.image-wrapper {
-    position: relative;
-    transform-origin: center;
-    transition: transform 0.1s ease-out;
-}
-
-.image-wrapper.draggable {
-    cursor: grab;
-}
-
-.image-wrapper.draggable:active {
-    cursor: grabbing;
 }
 
 .fullsize-preview img {
@@ -866,6 +851,14 @@ input:checked + .slider:before {
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
+}
+
+.fullsize-preview img.draggable {
+    cursor: grab;
+}
+
+.fullsize-preview img.draggable:active {
+    cursor: grabbing;
 }
 
 .preview-controls {
