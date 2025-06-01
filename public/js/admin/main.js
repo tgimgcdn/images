@@ -725,6 +725,77 @@ document.addEventListener('click', function(e) {
     }
 });
 
+// 添加一个新函数，用于单独更新控制面板上的统计数据
+async function updateDashboardStats() {
+    try {
+        // 获取统计数据
+        const stats = await safeApiCall('/api/stats/summary');
+        
+        if (stats.error) {
+            console.error('更新统计数据失败:', stats.error);
+            return;
+        }
+        
+        // 更新统计卡片
+        const totalImagesElement = document.getElementById('totalImages');
+        const todayUploadsElement = document.getElementById('todayUploads');
+        const totalSizeElement = document.getElementById('totalSize');
+        
+        if (totalImagesElement) {
+            totalImagesElement.textContent = stats.total_images || '0';
+        }
+        
+        if (todayUploadsElement) {
+            todayUploadsElement.textContent = stats.today_uploads || '0';
+        }
+        
+        if (totalSizeElement) {
+            const sizeInBytes = stats.total_size || 0;
+            totalSizeElement.textContent = formatFileSize(sizeInBytes, 2);
+        }
+    } catch (error) {
+        console.error('更新控制面板统计数据失败:', error);
+    }
+}
+
+// 修改单个图片删除函数
+async function deleteImage(id) {
+    try {
+        const response = await safeApiCall(`/api/images/${id}`, {
+            method: 'DELETE'
+        });
+        
+        // 修复响应判断逻辑
+        if (!response.error) {  // 改为判断是否有error字段，而不是判断ok属性
+            // 从DOM中移除对应的图片卡片
+            const card = document.querySelector(`.image-card[data-id="${id}"]`);
+            if (card) {
+                card.remove();
+            }
+            
+            showNotification('图片已成功删除', 'success');
+            
+            // 更新仪表盘统计数据
+            await updateDashboardStats();
+            
+            // 如果所有图片都被删除了，显示无图片提示
+            if (document.querySelectorAll('.image-card').length === 0) {
+                imageGrid.innerHTML = '<div class="no-images">暂无图片</div>';
+                const paginationContainer = document.getElementById('pagination');
+                if (paginationContainer) {
+                    paginationContainer.innerHTML = '';
+                }
+            }
+        } else {
+            console.error('删除图片失败:', response.error);
+            showNotification(`删除图片失败: ${response.error || '未知错误'}`, 'error');
+        }
+    } catch (error) {
+        console.error('删除图片时出错:', error);
+        showNotification('删除图片失败: ' + error.message, 'error');
+    }
+}
+
 // 批量删除图片
 async function batchDeleteImages() {
     const checkedBoxes = document.querySelectorAll('.image-checkbox:checked');
@@ -768,6 +839,9 @@ async function batchDeleteImages() {
                 }
             }
             
+            // 更新仪表盘统计数据
+            await updateDashboardStats();
+            
             // 重置全选状态
             if (selectAllCheckbox) {
                 selectAllCheckbox.checked = false;
@@ -800,41 +874,6 @@ async function batchDeleteImages() {
             batchDeleteButton.innerHTML = '<i class="fas fa-trash"></i> 批量删除';
             updateBatchButtonsState();
         }
-    }
-}
-
-// 单个图片删除
-async function deleteImage(id) {
-    try {
-        const response = await safeApiCall(`/api/images/${id}`, {
-            method: 'DELETE'
-        });
-        
-        // 修复响应判断逻辑
-        if (!response.error) {  // 改为判断是否有error字段，而不是判断ok属性
-            // 从DOM中移除对应的图片卡片
-            const card = document.querySelector(`.image-card[data-id="${id}"]`);
-            if (card) {
-                card.remove();
-            }
-            
-            showNotification('图片已成功删除', 'success');
-            
-            // 如果所有图片都被删除了，显示无图片提示
-            if (document.querySelectorAll('.image-card').length === 0) {
-                imageGrid.innerHTML = '<div class="no-images">暂无图片</div>';
-                const paginationContainer = document.getElementById('pagination');
-                if (paginationContainer) {
-                    paginationContainer.innerHTML = '';
-                }
-            }
-        } else {
-            console.error('删除图片失败:', response.error);
-            showNotification(`删除图片失败: ${response.error || '未知错误'}`, 'error');
-        }
-    } catch (error) {
-        console.error('删除图片时出错:', error);
-        showNotification('删除图片失败: ' + error.message, 'error');
     }
 }
 
