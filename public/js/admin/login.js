@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const recaptchaContainer = document.getElementById('recaptchaContainer');
     const recaptchaElement = document.querySelector('.g-recaptcha');
 
+    console.log('登录页面已加载');
+
     // 检查是否启用了 reCAPTCHA
     try {
         const response = await fetch('/api/admin/recaptcha-config');
@@ -14,11 +16,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             recaptchaElement.dataset.sitekey = config.siteKey;
         }
     } catch (error) {
-        console.error('Failed to load reCAPTCHA config:', error);
+        console.error('加载 reCAPTCHA 配置失败:', error);
     }
 
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        console.log('提交登录表单');
         
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
@@ -26,7 +29,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             ? grecaptcha.getResponse() 
             : null;
 
+        // 显示加载状态
+        const submitButton = loginForm.querySelector('button[type="submit"]');
+        const originalButtonText = submitButton.textContent;
+        submitButton.disabled = true;
+        submitButton.textContent = '登录中...';
+        
+        errorMessage.style.display = 'none';
+
         try {
+            console.log('发送登录请求');
             const response = await fetch('/api/admin/login', {
                 method: 'POST',
                 headers: {
@@ -39,10 +51,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 })
             });
 
+            console.log('接收到登录响应:', response.status);
             const data = await response.json();
+            console.log('响应数据:', data);
 
             if (response.ok) {
                 // 登录成功，跳转到管理后台
+                console.log('登录成功，即将跳转');
                 window.location.href = '/admin/';
             } else {
                 // 显示错误信息
@@ -55,8 +70,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         } catch (error) {
+            console.error('登录过程中出现错误:', error);
             errorMessage.textContent = '网络错误，请稍后重试';
             errorMessage.style.display = 'block';
+        } finally {
+            // 恢复按钮状态
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
         }
     });
 }); 
