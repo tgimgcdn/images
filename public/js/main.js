@@ -261,12 +261,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             const data = await response.json();
+            console.log('游客上传权限检查结果:', data);
             
             if (!data.success) {
                 throw new Error(data.error || 'Failed to load settings');
             }
             
-            if (!data.data.allowGuestUpload) {
+            // 检查是否有会话cookie（是否已登录）
+            const isLoggedIn = document.cookie.includes('session_id=');
+            
+            // 如果未登录且不允许游客上传，则显示禁用信息
+            if (!isLoggedIn && !data.data.allowGuestUpload) {
+                console.log('未登录且游客上传已禁用，显示提示信息');
                 dropZone.innerHTML = `
                     <div class="upload-content">
                         <i class="fas fa-lock upload-icon"></i>
@@ -274,6 +280,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <p>请<a href="/admin/login.html">登录</a>后上传图片</p>
                     </div>
                 `;
+                // 禁用拖拽上传功能
+                disableUpload();
+            } else {
+                console.log('允许上传，初始化上传功能');
+                // 初始化上传功能
+                initUpload();
             }
         } catch (error) {
             console.error('Failed to load settings:', error);
@@ -283,12 +295,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                 setTimeout(checkGuestUpload, delay);
             } else {
                 showToast('加载设置失败，请刷新页面重试');
+                // 出错时默认允许上传，避免错误阻止已登录用户
+                initUpload();
             }
         }
     }
 
-    // 初始化上传功能
-    initUpload();
+    // 禁用上传功能
+    function disableUpload() {
+        // 移除所有上传相关的事件监听器
+        dropZone.removeEventListener('dragover', handleDragOver);
+        dropZone.removeEventListener('dragleave', handleDragLeave);
+        dropZone.removeEventListener('drop', handleFileDrop);
+        dropZone.removeEventListener('click', triggerFileInput);
+        
+        // 禁用文件输入框
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) {
+            fileInput.disabled = true;
+        }
+        
+        // 添加禁用样式
+        dropZone.classList.add('disabled');
+    }
+
+    // 注释掉这个初始化调用，改为在checkGuestUpload后根据权限决定是否初始化
+    // initUpload();
 
     // 开始检查游客上传权限
     checkGuestUpload();
