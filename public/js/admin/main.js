@@ -252,12 +252,15 @@ function initSettings() {
         safeApiCall('/api/settings')
             .then(settings => {
                 if (!settings.error) {
+                    console.log('已加载设置:', settings);
                     // 更新表单值
                     const allowGuestUpload = document.getElementById('allowGuestUpload');
                     const siteName = document.getElementById('siteName');
                     
                     if (allowGuestUpload) {
+                        // 确保使用严格比较，string类型的'true'转换为布尔值
                         allowGuestUpload.checked = settings.allow_guest_upload === 'true';
+                        console.log('设置游客上传状态:', allowGuestUpload.checked);
                     }
                     
                     if (siteName) {
@@ -283,9 +286,11 @@ function initSettings() {
             const formData = new FormData(settingsForm);
             const settings = {};
             
-            for (const [key, value] of formData.entries()) {
-                settings[key] = value === 'on' ? 'true' : value;
-            }
+            // 特殊处理复选框
+            settings.allow_guest_upload = document.getElementById('allowGuestUpload').checked ? 'true' : 'false';
+            settings.site_name = document.getElementById('siteName').value;
+            
+            console.log('保存设置:', settings);
             
             try {
                 const response = await safeApiCall('/api/settings', {
@@ -297,8 +302,10 @@ function initSettings() {
                 });
                 
                 if (!response.error) {
+                    console.log('设置保存成功');
                     showNotification('设置已保存', 'success');
                 } else {
+                    console.error('保存设置失败:', response.error);
                     showNotification('保存设置失败: ' + response.error, 'error');
                 }
             } catch (error) {
