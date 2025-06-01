@@ -131,43 +131,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function uploadFiles(files) {
         const startTime = Date.now();
         let uploadedCount = 0;
+        let uploadedBytes = 0;
         const totalFiles = files.length;
+        const totalBytes = Array.from(files).reduce((total, file) => total + file.size, 0);
         const uploadedResults = [];
 
-        // 显示进度条
-        document.querySelector('.upload-progress').style.display = 'block';
+        // 显示进度条并重置
+        const uploadProgress = document.querySelector('.upload-progress');
+        progressBar.style.width = '0%';
+        progressText.textContent = '0%';
+        progressSpeed.textContent = '0 KB/s';
+        uploadProgress.style.display = 'block';
 
         for (const file of files) {
-            const formData = new FormData();
-            formData.append('file', file);
-
             try {
-                const response = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData
+                console.log(`开始上传文件: ${file.name}, 大小: ${file.size}`);
+                
+                // 使用支持进度的上传方法
+                const result = await uploadFileWithProgress(file, (loaded, total) => {
+                    // 计算总体进度 (已上传完成的文件 + 当前文件的进度)
+                    const overallProgress = (uploadedBytes + loaded) / totalBytes;
+                    const percent = Math.min(100, Math.round(overallProgress * 100));
+                    
+                    // 更新进度条
+                    progressBar.style.width = percent + '%';
+                    progressText.textContent = percent + '%';
+                    
+                    // 计算上传速度
+                    const elapsedSeconds = (Date.now() - startTime) / 1000;
+                    if (elapsedSeconds > 0) {
+                        const speed = (uploadedBytes + loaded) / elapsedSeconds;
+                        progressSpeed.textContent = formatSpeed(speed);
+                    }
                 });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || '上传失败');
-                }
-
-                const result = await response.json();
-                uploadedCount++;
-                uploadedResults.push(result.data);
-
-                // 更新进度
-                const percent = Math.round((uploadedCount / totalFiles) * 100);
-                progressBar.style.width = percent + '%';
-                progressText.textContent = percent + '%';
-
-                // 计算上传速度
-                const speed = (uploadedCount * file.size) / ((Date.now() - startTime) / 1000);
-                progressSpeed.textContent = formatSpeed(speed);
-
-                // 显示所有文件的上传结果
-                if (uploadedCount === totalFiles) {
-                    showResult(uploadedResults);
+                
+                if (result.success) {
+                    uploadedCount++;
+                    uploadedBytes += file.size;
+                    uploadedResults.push(result.data);
+                    
+                    // 显示所有文件的上传结果
+                    if (uploadedCount === totalFiles) {
+                        showResult(uploadedResults);
+                    }
+                } else {
+                    showToast(result.error || '上传失败');
                 }
             } catch (error) {
                 showToast(error.message);
@@ -175,7 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // 隐藏进度条
-        document.querySelector('.upload-progress').style.display = 'none';
+        uploadProgress.style.display = 'none';
         progressBar.style.width = '0%';
 
         // 清空文件列表和确认按钮
@@ -183,6 +191,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         const confirmBtn = document.querySelector('.confirm-upload-btn');
         if (fileList) fileList.remove();
         if (confirmBtn) confirmBtn.remove();
+    }
+
+    // 使用XMLHttpRequest上传文件并显示进度
+    function uploadFileWithProgress(file, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // 监听上传进度
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable && onProgress) {
+                    onProgress(e.loaded, e.total);
+                }
+            });
+            
+            // 监听请求完成
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        resolve(response);
+                    } catch (error) {
+                        reject(new Error('解析响应失败: ' + error.message));
+                    }
+                } else {
+                    let errorMessage = '上传失败';
+                    try {
+                        const errorResponse = JSON.parse(xhr.responseText);
+                        errorMessage = errorResponse.error || `服务器错误 (${xhr.status})`;
+                    } catch (e) {
+                        errorMessage = `服务器错误 (${xhr.status})`;
+                    }
+                    reject(new Error(errorMessage));
+                }
+            });
+            
+            // 监听错误
+            xhr.addEventListener('error', () => {
+                reject(new Error('网络错误'));
+            });
+            
+            xhr.addEventListener('abort', () => {
+                reject(new Error('上传已取消'));
+            });
+            
+            // 发送请求
+            xhr.open('POST', '/api/upload', true);
+            xhr.send(formData);
+        });
     }
 
     // 显示上传结果
