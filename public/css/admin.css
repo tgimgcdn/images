@@ -298,6 +298,7 @@ body {
     padding: 10px;
     display: flex;
     flex-direction: column;
+    gap: 8px;
 }
 
 .image-info h3 {
@@ -321,10 +322,38 @@ body {
     margin: 0;
 }
 
+.filename-container {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.image-filename {
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-grow: 1;
+}
+
+/* 图片元数据布局 */
 .image-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     font-size: 12px;
     color: #666;
-    margin: 5px 0;
+}
+
+.upload-date {
+    text-align: left;
+}
+
+.file-size {
+    text-align: left;
+    font-weight: 500;
+    color: #555;
 }
 
 .image-actions {
@@ -632,8 +661,15 @@ input:checked + .slider:before {
         font-size: 12px;
     }
     
+    /* 在移动设备上文件大小显示在下一行 */
     .image-meta {
-        font-size: 10px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+    }
+    
+    .file-size {
+        align-self: flex-end;
     }
 }
 
@@ -641,6 +677,17 @@ input:checked + .slider:before {
 @media (min-width: 769px) and (max-width: 1024px) {
     .image-grid {
         grid-template-columns: repeat(3, 1fr); /* 平板端每行3个 */
+    }
+    
+    /* 在平板设备上文件大小也显示在下一行 */
+    .image-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+    }
+    
+    .file-size {
+        align-self: flex-end;
     }
 }
 
@@ -906,39 +953,6 @@ input:checked + .slider:before {
     display: flex;
     flex-direction: column;
     gap: 5px;
-}
-
-/* 图片信息样式优化 */
-.image-info {
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.filename-container {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.image-filename {
-    font-size: 14px;
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex-grow: 1;
-}
-
-.upload-date {
-    font-size: 12px;
-    color: #666;
-}
-
-/* 移除不需要的tooltip相关样式 */
-.filename-tooltip {
-    display: none;
 }
 
 /* 鼠标悬停效果增强 */
