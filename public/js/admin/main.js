@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 添加图片复选框变化事件委托
             document.addEventListener('change', function(e) {
                 if (e.target.classList.contains('image-checkbox')) {
-                    updateBatchDeleteButtonState();
+                    updateBatchButtonsState();
                 }
             });
             
@@ -595,9 +595,22 @@ function initBatchOperations() {
             <input type="checkbox" id="selectAllImages">
             <label for="selectAllImages">全选</label>
         </div>
-        <button id="batchDeleteBtn" class="btn-danger" disabled>
-            <i class="fas fa-trash"></i> 批量删除
-        </button>
+        <div class="batch-buttons">
+            <div class="dropdown batch-copy-dropdown">
+                <button id="batchCopyBtn" class="btn-primary dropdown-toggle" disabled>
+                    <i class="fas fa-copy"></i> 批量复制
+                </button>
+                <div class="dropdown-menu">
+                    <a href="#" class="dropdown-item" data-format="url">复制URL</a>
+                    <a href="#" class="dropdown-item" data-format="markdown">复制Markdown</a>
+                    <a href="#" class="dropdown-item" data-format="bbcode">复制BBCode</a>
+                    <a href="#" class="dropdown-item" data-format="html">复制HTML</a>
+                </div>
+            </div>
+            <button id="batchDeleteBtn" class="btn-danger" disabled>
+                <i class="fas fa-trash"></i> 批量删除
+            </button>
+        </div>
     `;
     
     // 将工具栏插入到图片网格上方
@@ -617,6 +630,9 @@ function initBatchOperations() {
     // 获取引用
     selectAllCheckbox = document.getElementById('selectAllImages');
     batchDeleteButton = document.getElementById('batchDeleteBtn');
+    const batchCopyButton = document.getElementById('batchCopyBtn');
+    const batchCopyDropdown = document.querySelector('.batch-copy-dropdown');
+    const batchCopyMenu = batchCopyDropdown.querySelector('.dropdown-menu');
     
     if (selectAllCheckbox) {
         // 添加全选事件监听
@@ -626,7 +642,7 @@ function initBatchOperations() {
                 checkbox.checked = selectAllCheckbox.checked;
             });
             
-            updateBatchDeleteButtonState();
+            updateBatchButtonsState();
         });
     } else {
         console.warn('未找到全选复选框元素');
@@ -638,15 +654,112 @@ function initBatchOperations() {
     } else {
         console.warn('未找到批量删除按钮元素');
     }
+    
+    // 批量复制下拉菜单
+    batchCopyButton.addEventListener('click', function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        // 关闭所有其他下拉菜单
+        document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+            if (menu !== batchCopyMenu) {
+                menu.classList.remove('show');
+            }
+        });
+        
+        // 切换当前下拉菜单
+        batchCopyMenu.classList.toggle('show');
+    });
+    
+    // 点击下拉菜单项复制对应格式的链接
+    batchCopyMenu.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const format = this.dataset.format;
+            const checkedBoxes = document.querySelectorAll('.image-checkbox:checked');
+            const selectedImages = [];
+            
+            // 获取所有选中图片信息
+            checkedBoxes.forEach(checkbox => {
+                const card = checkbox.closest('.image-card');
+                const id = checkbox.dataset.id;
+                
+                // 找到卡片中的URL和文件名
+                const copyBtn = card.querySelector('.btn-copy');
+                const filename = card.querySelector('.image-filename').getAttribute('title');
+                
+                // 获取URL (从下拉菜单项)
+                const urlItem = card.querySelector('.dropdown-item[data-format="url"]');
+                const url = urlItem ? urlItem.dataset.url : '';
+                
+                selectedImages.push({ id, url, filename });
+            });
+            
+            if (selectedImages.length === 0) {
+                showNotification('请选择要复制的图片', 'warning');
+                return;
+            }
+            
+            // 根据格式生成复制内容，每个链接一行
+            let copyText = '';
+            selectedImages.forEach(img => {
+                switch(format) {
+                    case 'url':
+                        copyText += `${img.url}\n`;
+                        break;
+                    case 'markdown':
+                        copyText += `![${img.filename}](${img.url})\n`;
+                        break;
+                    case 'bbcode':
+                        copyText += `[img]${img.url}[/img]\n`;
+                        break;
+                    case 'html':
+                        copyText += `<img src="${img.url}" alt="${img.filename}">\n`;
+                        break;
+                }
+            });
+            
+            // 移除最后一个换行符
+            copyText = copyText.trim();
+            
+            navigator.clipboard.writeText(copyText)
+                .then(() => {
+                    showNotification(`已复制${selectedImages.length}张图片的${format.toUpperCase()}格式链接`, 'success');
+                    batchCopyMenu.classList.remove('show');
+                })
+                .catch(err => {
+                    showNotification('复制失败: ' + err, 'error');
+                });
+        });
+    });
 }
 
-// 更新批量删除按钮状态
-function updateBatchDeleteButtonState() {
+// 更新批量操作按钮状态
+function updateBatchButtonsState() {
     const checkedBoxes = document.querySelectorAll('.image-checkbox:checked');
+    const hasCheckedItems = checkedBoxes.length > 0;
+    
     if (batchDeleteButton) {
-        batchDeleteButton.disabled = checkedBoxes.length === 0;
+        batchDeleteButton.disabled = !hasCheckedItems;
+    }
+    
+    const batchCopyButton = document.getElementById('batchCopyBtn');
+    if (batchCopyButton) {
+        batchCopyButton.disabled = !hasCheckedItems;
     }
 }
+
+// 点击页面其他地方关闭所有下拉菜单
+document.addEventListener('click', function(e) {
+    // 如果点击的不是下拉菜单或其子元素，则关闭所有下拉菜单
+    if (!e.target.closest('.dropdown')) {
+        document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+            menu.classList.remove('show');
+        });
+    }
+});
 
 // 批量删除图片
 async function batchDeleteImages() {
@@ -720,7 +833,7 @@ async function batchDeleteImages() {
         } finally {
             batchDeleteButton.disabled = false;
             batchDeleteButton.innerHTML = '<i class="fas fa-trash"></i> 批量删除';
-            updateBatchDeleteButtonState();
+            updateBatchButtonsState();
         }
     }
 }
@@ -876,7 +989,7 @@ async function loadImages(page = 1, search = '') {
             });
             
             // 更新选中状态
-            updateBatchDeleteButtonState();
+            updateBatchButtonsState();
             
             // 设置分页
             setupPagination(data.total, data.page, data.total_pages || Math.ceil(data.total / 36));
@@ -922,9 +1035,17 @@ function createImageCard(image) {
             </div>
         </div>
         <div class="image-actions">
-            <button class="btn-copy" data-url="${image.url}" title="复制链接">
-                <i class="fas fa-copy"></i> 复制
-            </button>
+            <div class="dropdown">
+                <button class="btn-copy dropdown-toggle" title="复制链接">
+                    <i class="fas fa-copy"></i> 复制
+                </button>
+                <div class="dropdown-menu">
+                    <a href="#" class="dropdown-item" data-format="url" data-url="${image.url}">URL</a>
+                    <a href="#" class="dropdown-item" data-format="markdown" data-url="${image.url}" data-filename="${image.filename}">Markdown</a>
+                    <a href="#" class="dropdown-item" data-format="bbcode" data-url="${image.url}">BBCode</a>
+                    <a href="#" class="dropdown-item" data-format="html" data-url="${image.url}" data-filename="${image.filename}">HTML</a>
+                </div>
+            </div>
             <button class="btn-delete" data-id="${image.id}" title="删除图片">
                 <i class="fas fa-trash"></i> 删除
             </button>
@@ -981,17 +1102,62 @@ function createImageCard(image) {
         };
     });
     
-    // 复制链接按钮
-    card.querySelector('.btn-copy').addEventListener('click', function(e) {
+    // 复制按钮下拉菜单
+    const dropdown = card.querySelector('.dropdown');
+    const dropdownToggle = dropdown.querySelector('.dropdown-toggle');
+    const dropdownMenu = dropdown.querySelector('.dropdown-menu');
+    
+    // 点击按钮显示下拉菜单
+    dropdownToggle.addEventListener('click', function(e) {
         e.stopPropagation();
-        const url = this.dataset.url;
-        navigator.clipboard.writeText(url)
-            .then(() => {
-                showNotification('链接已复制到剪贴板', 'success');
-            })
-            .catch(err => {
-                showNotification('复制失败: ' + err, 'error');
-            });
+        e.preventDefault();
+        
+        // 关闭所有其他下拉菜单
+        document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+            if (menu !== dropdownMenu) {
+                menu.classList.remove('show');
+            }
+        });
+        
+        // 切换当前下拉菜单
+        dropdownMenu.classList.toggle('show');
+    });
+    
+    // 点击下拉菜单项复制对应格式的链接
+    dropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const format = this.dataset.format;
+            const url = this.dataset.url;
+            const filename = this.dataset.filename || '';
+            
+            let copyText = '';
+            switch(format) {
+                case 'url':
+                    copyText = url;
+                    break;
+                case 'markdown':
+                    copyText = `![${filename}](${url})`;
+                    break;
+                case 'bbcode':
+                    copyText = `[img]${url}[/img]`;
+                    break;
+                case 'html':
+                    copyText = `<img src="${url}" alt="${filename}">`;
+                    break;
+            }
+            
+            navigator.clipboard.writeText(copyText)
+                .then(() => {
+                    showNotification(`已复制${format.toUpperCase()}格式链接`, 'success');
+                    dropdownMenu.classList.remove('show');
+                })
+                .catch(err => {
+                    showNotification('复制失败: ' + err, 'error');
+                });
+        });
     });
     
     // 删除按钮
