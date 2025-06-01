@@ -244,6 +244,8 @@ document.addEventListener('DOMContentLoaded', () => {
 function initSettings() {
     console.log('初始化系统设置');
     const settingsForm = document.getElementById('settingsForm');
+    const passwordForm = document.getElementById('passwordForm');
+    
     if (!settingsForm) {
         console.error('未找到设置表单元素');
         return;
@@ -257,40 +259,26 @@ function initSettings() {
                     console.log('已加载设置:', settings);
                     // 更新表单值
                     const allowGuestUpload = document.getElementById('allowGuestUpload');
-                    const siteName = document.getElementById('siteName');
                     
                     if (allowGuestUpload) {
                         // 确保使用严格比较，string类型的'true'转换为布尔值
                         allowGuestUpload.checked = settings.allow_guest_upload === 'true';
                         console.log('设置游客上传状态:', allowGuestUpload.checked);
                     }
-                    
-                    if (siteName) {
-                        siteName.value = settings.site_name || '参界图床';
-                    }
-                    
-                    // 添加调试模式开关
-                    addDebugModeToggle();
                 }
             })
             .catch(err => {
                 console.error('加载设置失败:', err);
                 showNotification('加载设置失败', 'error');
-                
-                // 即使出错也添加调试模式开关
-                addDebugModeToggle();
             });
         
         // 处理设置表单提交
         settingsForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const formData = new FormData(settingsForm);
-            const settings = {};
-            
-            // 特殊处理复选框
-            settings.allow_guest_upload = document.getElementById('allowGuestUpload').checked ? 'true' : 'false';
-            settings.site_name = document.getElementById('siteName').value;
+            const settings = {
+                allow_guest_upload: document.getElementById('allowGuestUpload').checked ? 'true' : 'false'
+            };
             
             console.log('保存设置:', settings);
             
@@ -315,52 +303,85 @@ function initSettings() {
                 console.error('保存设置出错:', error);
             }
         });
+
+        // 处理密码修改表单提交
+        if (passwordForm) {
+            passwordForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const currentPassword = document.getElementById('currentPassword').value;
+                const newPassword = document.getElementById('newPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                
+                // 清除可能存在的错误提示
+                document.querySelectorAll('.password-error').forEach(el => el.remove());
+                
+                // 验证新密码和确认密码是否一致
+                if (newPassword !== confirmPassword) {
+                    const errorMessage = document.createElement('div');
+                    errorMessage.className = 'password-error error-message';
+                    errorMessage.textContent = '两次输入的新密码不一致';
+                    document.getElementById('confirmPassword').parentNode.appendChild(errorMessage);
+                    showNotification('两次输入的新密码不一致', 'error');
+                    return;
+                }
+                
+                // 验证新密码长度
+                if (newPassword.length < 6) {
+                    const errorMessage = document.createElement('div');
+                    errorMessage.className = 'password-error error-message';
+                    errorMessage.textContent = '新密码长度不能少于6个字符';
+                    document.getElementById('newPassword').parentNode.appendChild(errorMessage);
+                    showNotification('新密码长度不能少于6个字符', 'error');
+                    return;
+                }
+                
+                try {
+                    // 显示加载状态
+                    const submitButton = passwordForm.querySelector('button[type="submit"]');
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 修改中...';
+                    
+                    const response = await safeApiCall('/api/admin/change-password', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            currentPassword,
+                            newPassword
+                        })
+                    });
+                    
+                    // 恢复按钮状态
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = '<i class="fas fa-key"></i> 修改密码';
+                    
+                    if (!response.error) {
+                        console.log('密码修改成功');
+                        showNotification('密码已成功修改', 'success');
+                        
+                        // 清空表单
+                        passwordForm.reset();
+                    } else {
+                        console.error('密码修改失败:', response.error);
+                        showNotification('密码修改失败: ' + response.error, 'error');
+                    }
+                } catch (error) {
+                    // 恢复按钮状态
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = '<i class="fas fa-key"></i> 修改密码';
+                    
+                    console.error('密码修改请求失败:', error);
+                    showNotification('密码修改请求失败', 'error');
+                }
+            });
+        } else {
+            console.warn('未找到密码修改表单');
+        }
     } catch (error) {
         console.error('初始化设置功能失败:', error);
     }
-}
-
-// 添加调试模式开关
-function addDebugModeToggle() {
-    const settingsForm = document.querySelector('.settings-form');
-    if (!settingsForm) return;
-    
-    // 检查是否已经存在调试模式开关
-    if (document.getElementById('debugModeToggle')) return;
-    
-    // 创建调试模式开关元素
-    const debugModeContainer = document.createElement('div');
-    debugModeContainer.className = 'form-group';
-    debugModeContainer.innerHTML = `
-        <div class="switch-label">
-            <span>调试模式</span>
-            <label class="switch">
-                <input type="checkbox" id="debugModeToggle" ${isDebugMode ? 'checked' : ''}>
-                <span class="slider"></span>
-            </label>
-        </div>
-        <p class="hint">调试模式会显示更多信息，并在没有数据时显示模拟数据</p>
-    `;
-    
-    settingsForm.appendChild(debugModeContainer);
-    
-    // 添加开关事件处理
-    document.getElementById('debugModeToggle').addEventListener('change', (e) => {
-        isDebugMode = e.target.checked;
-        localStorage.setItem('debugMode', isDebugMode);
-        
-        if (isDebugMode) {
-            document.body.classList.add('debug-mode');
-            showNotification('调试模式已启用', 'info');
-        } else {
-            document.body.classList.remove('debug-mode');
-            showNotification('调试模式已关闭', 'info');
-        }
-        
-        // 刷新数据
-        initDashboard();
-        loadImages();
-    });
 }
 
 // 加载允许的文件类型
