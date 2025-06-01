@@ -530,4 +530,32 @@ input:checked + .slider:before {
 
 .back-link a:hover {
     text-decoration: underline;
+}
+
+/* reCAPTCHA样式 */
+#recaptchaContainer {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+
+/* 替代Google字体，提供系统字体作为备选 */
+@font-face {
+    font-family: 'Roboto';
+    font-style: normal;
+    font-weight: 400;
+    src: local('Arial'), local('Helvetica'), local('sans-serif');
+}
+
+/* 确保reCAPTCHA框内文字可见 */
+.g-recaptcha * {
+    font-family: Arial, Helvetica, sans-serif !important;
+}
+
+/* 调整登录表单内验证码位置 */
+.login-form #recaptchaContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px auto;
 } 
