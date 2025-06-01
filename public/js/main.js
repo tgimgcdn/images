@@ -318,8 +318,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         dropZone.addEventListener('dragleave', preventDrag);
         dropZone.addEventListener('drop', preventDrag);
         
-        // 阻止点击事件触发文件选择
-        dropZone.addEventListener('click', preventDrag);
+        // 修改点击事件处理，允许链接点击通过
+        dropZone.addEventListener('click', (e) => {
+            // 检查点击的元素或其父元素是否是链接
+            const isLink = e.target.tagName === 'A' || e.target.closest('a');
+            
+            // 如果是链接，就不阻止事件
+            if (!isLink) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
         
         // 禁用文件输入框
         const fileInput = document.getElementById('fileInput');
