@@ -4,9 +4,21 @@ let totalPages = 1;
 let currentSort = 'newest';
 let currentSearch = '';
 let viewsChart = null;
+let isDebugMode = false; // 添加调试模式标志
+let allowedFileTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon']; // 默认允许的文件类型
 
 // DOM 加载完成后执行
 document.addEventListener('DOMContentLoaded', () => {
+    // 检查是否启用调试模式
+    isDebugMode = localStorage.getItem('debugMode') === 'true' || new URLSearchParams(window.location.search).has('debug');
+    if (isDebugMode) {
+        console.log('调试模式已启用');
+        document.body.classList.add('debug-mode');
+    }
+
+    // 加载允许的文件类型
+    loadAllowedFileTypes();
+
     // 初始化页面
     initNavigation();
     initDashboard();
@@ -14,6 +26,50 @@ document.addEventListener('DOMContentLoaded', () => {
     initSettings();
     initUploadModal();
 });
+
+// 加载允许的文件类型
+async function loadAllowedFileTypes() {
+    try {
+        const response = await safeApiCall('/api/settings');
+        if (!response.error && response.allowed_types) {
+            allowedFileTypes = response.allowed_types.split(',');
+            console.log('已加载允许的文件类型:', allowedFileTypes);
+        } else {
+            console.log('使用默认的允许文件类型:', allowedFileTypes);
+        }
+    } catch (error) {
+        console.error('加载允许的文件类型失败:', error);
+    }
+}
+
+// 安全的API调用函数，包含错误处理
+async function safeApiCall(url, options = {}) {
+    try {
+        // 在调试模式下添加debug参数
+        if (isDebugMode) {
+            url = url.includes('?') ? `${url}&debug=true` : `${url}?debug=true`;
+        }
+        
+        const response = await fetch(url, {
+            ...options,
+            credentials: 'include',
+            headers: {
+                ...options.headers,
+                'X-Debug-Mode': isDebugMode ? 'true' : 'false'
+            }
+        });
+        
+        if (!response.ok) {
+            console.error(`API错误: ${url} 返回状态码 ${response.status}`);
+            return { error: `服务器错误 (${response.status})` };
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error(`API调用错误:`, error);
+        return { error: '网络请求失败，请检查连接' };
+    }
+}
 
 // 导航功能
 function initNavigation() {
@@ -56,26 +112,35 @@ function initNavigation() {
 async function initDashboard() {
     try {
         // 获取统计数据
-        const statsResponse = await fetch('/api/stats/summary', {
-            credentials: 'include'
-        });
-        const stats = await statsResponse.json();
+        const stats = await safeApiCall('/api/stats/summary');
         
-        // 更新统计卡片
-        document.getElementById('totalImages').textContent = stats.total_images;
-        document.getElementById('todayUploads').textContent = stats.today_uploads;
-        document.getElementById('totalViews').textContent = stats.total_views;
+        if (stats.error) {
+            showToast(`加载统计数据失败: ${stats.error}`, 'error');
+            // 使用默认值
+            document.getElementById('totalImages').textContent = '-';
+            document.getElementById('todayUploads').textContent = '-';
+            document.getElementById('totalViews').textContent = '-';
+        } else {
+            // 更新统计卡片
+            document.getElementById('totalImages').textContent = stats.total_images;
+            document.getElementById('todayUploads').textContent = stats.today_uploads;
+            document.getElementById('totalViews').textContent = stats.total_views;
+        }
 
         // 获取访问趋势数据
-        const trendResponse = await fetch('/api/stats/trend', {
-            credentials: 'include'
-        });
-        const trendData = await trendResponse.json();
+        const trendData = await safeApiCall('/api/stats/trend');
         
-        // 初始化图表
-        initViewsChart(trendData);
+        if (trendData.error) {
+            showToast(`加载趋势数据失败: ${trendData.error}`, 'error');
+            // 显示空图表或占位符
+            document.getElementById('viewsChart').innerHTML = '<div class="chart-placeholder">暂无数据</div>';
+        } else {
+            // 初始化图表
+            initViewsChart(trendData);
+        }
     } catch (error) {
         console.error('加载控制面板数据失败:', error);
+        showToast('加载控制面板数据失败', 'error');
     }
 }
 
@@ -159,25 +224,34 @@ function initImageManagement() {
 
 async function loadImages() {
     try {
-        const response = await fetch(`/api/images?page=${currentPage}&sort=${currentSort}&search=${currentSearch}`, {
-            credentials: 'include'
-        });
-        const data = await response.json();
+        const data = await safeApiCall(
+            `/api/images?page=${currentPage}&sort=${currentSort}&search=${currentSearch}`
+        );
+        
+        if (data.error) {
+            showToast(`加载图片列表失败: ${data.error}`, 'error');
+            return;
+        }
         
         // 更新图片列表
         const imageList = document.getElementById('imageList');
         imageList.innerHTML = '';
         
-        data.images.forEach(image => {
-            const imageCard = createImageCard(image);
-            imageList.appendChild(imageCard);
-        });
+        if (data.images && data.images.length > 0) {
+            data.images.forEach(image => {
+                const imageCard = createImageCard(image);
+                imageList.appendChild(imageCard);
+            });
+        } else {
+            imageList.innerHTML = '<div class="no-images">暂无图片</div>';
+        }
         
         // 更新分页
-        totalPages = data.total_pages;
+        totalPages = data.total_pages || 1;
         updatePagination();
     } catch (error) {
         console.error('加载图片列表失败:', error);
+        showToast('加载图片列表失败', 'error');
     }
 }
 
@@ -272,33 +346,36 @@ function updatePagination() {
 async function initSettings() {
     try {
         // 获取当前设置
-        const response = await fetch('/api/settings', {
-            credentials: 'include'
-        });
-        const settings = await response.json();
+        const settings = await safeApiCall('/api/settings');
+        
+        if (settings.error) {
+            showToast(`加载设置失败: ${settings.error}`, 'error');
+            return;
+        }
         
         // 更新表单
-        document.getElementById('allowGuestUpload').checked = settings.allow_guest_upload;
-        document.getElementById('siteName').value = settings.site_name;
+        document.getElementById('allowGuestUpload').checked = settings.allow_guest_upload === 'true';
+        document.getElementById('siteName').value = settings.site_name || '图床管理系统';
         
         // 保存设置
         document.getElementById('settingsForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const formData = new FormData(e.target);
-            const settings = Object.fromEntries(formData.entries());
+            const settingsData = Object.fromEntries(formData.entries());
             
             try {
-                const response = await fetch('/api/settings', {
+                const response = await safeApiCall('/api/settings', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(settings),
-                    credentials: 'include'
+                    body: JSON.stringify(settingsData)
                 });
                 
-                if (response.ok) {
+                if (response.error) {
+                    showToast(`保存设置失败: ${response.error}`, 'error');
+                } else {
                     showToast('设置已保存', 'success');
                 }
             } catch (error) {
@@ -306,8 +383,42 @@ async function initSettings() {
                 showToast('保存设置失败', 'error');
             }
         });
+        
+        // 添加调试模式切换
+        const debugModeContainer = document.createElement('div');
+        debugModeContainer.className = 'form-group';
+        debugModeContainer.innerHTML = `
+            <div class="switch-label">
+                <span>调试模式</span>
+                <label class="switch">
+                    <input type="checkbox" id="debugModeToggle" ${isDebugMode ? 'checked' : ''}>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <p class="hint">调试模式会显示更多信息，并在没有数据时显示模拟数据</p>
+        `;
+        
+        document.querySelector('.settings-form').appendChild(debugModeContainer);
+        
+        document.getElementById('debugModeToggle').addEventListener('change', (e) => {
+            isDebugMode = e.target.checked;
+            localStorage.setItem('debugMode', isDebugMode);
+            
+            if (isDebugMode) {
+                document.body.classList.add('debug-mode');
+                showToast('调试模式已启用', 'info');
+            } else {
+                document.body.classList.remove('debug-mode');
+                showToast('调试模式已关闭', 'info');
+            }
+            
+            // 刷新数据
+            initDashboard();
+            loadImages();
+        });
     } catch (error) {
         console.error('加载设置失败:', error);
+        showToast('加载设置失败', 'error');
     }
 }
 
@@ -366,13 +477,14 @@ async function handleFiles(files) {
     uploadProgress.style.display = 'block';
     
     for (const file of files) {
-        if (!file.type.startsWith('image/')) {
-            showToast('只能上传图片文件', 'error');
+        // 检查文件类型是否在允许列表中
+        if (!allowedFileTypes.includes(file.type)) {
+            showToast(`不支持的文件类型: ${file.type}。允许的类型: ${allowedFileTypes.join(', ')}`, 'error');
             continue;
         }
         
         const formData = new FormData();
-        formData.append('image', file);
+        formData.append('file', file);
         
         try {
             const xhr = new XMLHttpRequest();
@@ -395,18 +507,27 @@ async function handleFiles(files) {
                     showToast('上传成功', 'success');
                     loadImages();
                 } else {
-                    showToast('上传失败', 'error');
+                    let errorMsg = '上传失败';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg = response.error;
+                        }
+                    } catch (e) {
+                        console.error('解析响应失败:', e);
+                    }
+                    showToast(errorMsg, 'error');
                 }
             };
             
             xhr.onerror = () => {
-                showToast('上传失败', 'error');
+                showToast('上传失败，网络错误', 'error');
             };
             
             xhr.send(formData);
         } catch (error) {
             console.error('上传文件失败:', error);
-            showToast('上传失败', 'error');
+            showToast('上传失败: ' + error.message, 'error');
         }
     }
 }
