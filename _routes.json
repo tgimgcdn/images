@@ -12,6 +12,10 @@
       "dest": "/public/admin/login.html"
     },
     {
+      "src": "/admin/login$",
+      "dest": "/public/admin/login.html"
+    },
+    {
       "src": "/admin$",
       "dest": "/public/admin/index.html"
     },
