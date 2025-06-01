@@ -266,9 +266,10 @@ body {
     box-shadow: var(--shadow);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
     transition: transform 0.3s ease;
     height: 100%;
+    position: relative;
 }
 
 .image-card:hover {
@@ -1072,6 +1073,7 @@ input:checked + .slider:before {
 
 .dropdown-menu.show {
     display: block;
+    z-index: 9999;
 }
 
 .dropdown-item {
