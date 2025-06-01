@@ -6,6 +6,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     console.log('登录页面已加载');
 
+    // 检查是否已经登录，如果已登录则直接跳转到管理后台
+    if (document.cookie.includes('session_id=')) {
+        console.log('检测到已有会话，尝试直接进入管理后台');
+        window.location.href = '/admin/';
+        return;
+    }
+
     // 检查是否启用了 reCAPTCHA
     try {
         const response = await fetch('/api/admin/recaptcha-config');
@@ -44,6 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 headers: {
                     'Content-Type': 'application/json'
                 },
+                credentials: 'include', // 确保接收和发送cookie
                 body: JSON.stringify({ 
                     username, 
                     password,
@@ -58,7 +66,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (response.ok) {
                 // 登录成功，跳转到管理后台
                 console.log('登录成功，即将跳转');
-                window.location.href = '/admin/';
+                // 等待一小段时间确保cookie已设置
+                setTimeout(() => {
+                    window.location.href = '/admin/';
+                }, 500);
             } else {
                 // 显示错误信息
                 errorMessage.textContent = data.error || '登录失败';
