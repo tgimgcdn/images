@@ -3,7 +3,6 @@ let currentPage = 1;
 let totalPages = 1;
 let currentSort = 'newest';
 let currentSearch = '';
-let viewsChart = null;
 let isDebugMode = false; // 添加调试模式标志
 let allowedFileTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon']; // 默认允许的文件类型
 
@@ -481,84 +480,15 @@ async function initDashboard() {
             // 使用默认值
             document.getElementById('totalImages').textContent = '-';
             document.getElementById('todayUploads').textContent = '-';
-            document.getElementById('totalViews').textContent = '-';
         } else {
-            // 更新统计卡片 - 只显示真实统计数据
+            // 更新统计卡片 - 只保留图片总数和今日上传
             document.getElementById('totalImages').textContent = stats.total_images || '0';
             document.getElementById('todayUploads').textContent = stats.today_uploads || '0';
-            document.getElementById('totalViews').textContent = stats.total_views || '0';
-            
-            // 不再从趋势数据中计算总访问量，只使用API返回的实际值
-        }
-
-        // 获取访问趋势数据
-        const trendData = await safeApiCall('/api/stats/trend');
-        
-        if (trendData.error) {
-            showToast(`加载趋势数据失败: ${trendData.error}`, 'error');
-            // 显示空图表或占位符
-            document.getElementById('viewsChart').innerHTML = '<div class="chart-placeholder">暂无数据</div>';
-        } else {
-            // 检查趋势数据是否全部为零（没有实际访问记录）
-            const hasRealData = trendData.values && trendData.values.some(value => value > 0);
-            
-            if (!hasRealData) {
-                // 没有真实数据时显示提示信息
-                document.getElementById('viewsChart').innerHTML = '<div class="chart-placeholder">暂无访问记录，请等待累积实际数据</div>';
-            } else {
-                // 有真实数据时初始化图表
-                initViewsChart(trendData);
-            }
         }
     } catch (error) {
         console.error('加载控制面板数据失败:', error);
         showToast('加载控制面板数据失败', 'error');
     }
-}
-
-function initViewsChart(data) {
-    const ctx = document.getElementById('viewsChart').getContext('2d');
-    
-    if (viewsChart) {
-        viewsChart.destroy();
-    }
-    
-    viewsChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: '访问量',
-                data: data.values,
-                borderColor: '#4a90e2',
-                backgroundColor: 'rgba(74, 144, 226, 0.1)',
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
-                    }
-                }
-            }
-        }
-    });
 }
 
 // 图片管理功能
