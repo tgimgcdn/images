@@ -841,8 +841,8 @@ input:checked + .slider:before {
 }
 
 .fullsize-preview img {
-    max-width: 90%;
-    max-height: 90%;
+    max-width: 95%;
+    max-height: 95%;
     object-fit: contain;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
     transition: transform 0.2s ease;
