@@ -667,23 +667,36 @@ input:checked + .slider:before {
     
     /* 调整批量操作按钮在移动端的显示 */
     .batch-operations {
-        flex-direction: row;
-        justify-content: space-between;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .select-all-container {
+        margin-bottom: 8px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+    
+    .batch-buttons {
         width: 100%;
-    }
-    
-    /* 确保图片信息在移动端更紧凑 */
-    .image-actions {
-        flex-direction: row;
+        display: flex;
         justify-content: space-between;
-        padding: 6px;
     }
     
-    .image-actions button,
-    .image-actions .dropdown-toggle {
-        font-size: 11px;
-        padding: 5px;
+    .batch-copy-dropdown,
+    #batchDeleteBtn {
+        flex: 1;
+        max-width: 48%;
+    }
+    
+    /* 确保按钮文本不被截断 */
+    .batch-buttons button {
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 8px 5px;
+        font-size: 12px;
     }
     
     /* 确保移动端下拉菜单正确显示 */
@@ -730,6 +743,21 @@ input:checked + .slider:before {
     
     .file-size {
         align-self: flex-start;
+    }
+    
+    /* 修复图片操作按钮样式 */
+    .image-actions {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        padding: 6px;
+    }
+    
+    .image-actions button,
+    .image-actions .dropdown-toggle {
+        font-size: 11px;
+        padding: 5px;
+        white-space: nowrap;
     }
 }
 
@@ -875,6 +903,7 @@ input:checked + .slider:before {
     display: flex;
     align-items: center;
     gap: 15px;
+    margin-bottom: 15px;
 }
 
 .select-all-container {
@@ -886,6 +915,11 @@ input:checked + .slider:before {
 
 .select-all-container input {
     margin: 0;
+}
+
+.batch-buttons {
+    display: flex;
+    gap: 10px;
 }
 
 .btn-danger {
