@@ -44,8 +44,8 @@ export async function onRequest(context) {
       try {
         console.log('处理管理员登出请求');
         
-        // 设置一个已过期的 Cookie 来删除 session_id
-        const cookieHeader = `session_id=; HttpOnly; Secure; SameSite=Strict; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 UTC`;
+        // 设置一个空值的Cookie来删除session_id，使用简单格式
+        const cookieHeader = `session_id=; Path=/; Max-Age=0`;
         
         return new Response(JSON.stringify({ success: true }), {
           headers: {
@@ -154,8 +154,8 @@ export async function onRequest(context) {
           expiresAt.toISOString()
         ).run();
         
-        // 设置 cookie
-        const cookieHeader = `session_id=${sessionId}; HttpOnly; Path=/; Max-Age=${60*60*24*7}; SameSite=Lax`;
+        // 设置 cookie - 使用简单的格式，避免可能导致问题的选项
+        const cookieHeader = `session_id=${sessionId}; Path=/`;
         
         console.log('设置Cookie:', cookieHeader);
         
