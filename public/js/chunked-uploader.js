@@ -82,7 +82,7 @@ class ChunkedUploader {
    * 创建上传会话
    */
   async _createUploadSession() {
-    const response = await fetch('/api/upload/create-session', {
+    const response = await fetch('/api/upload?action=create-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -135,7 +135,7 @@ class ChunkedUploader {
       formData.append('totalChunks', this.totalChunks);
       
       // 上传分块
-      const response = await fetch('/api/upload/chunk', {
+      const response = await fetch('/api/upload?action=chunk', {
         method: 'POST',
         body: formData
       });
@@ -182,7 +182,7 @@ class ChunkedUploader {
    */
   async _completeUpload() {
     try {
-      const response = await fetch('/api/upload/complete', {
+      const response = await fetch('/api/upload?action=complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -286,7 +286,7 @@ class ChunkedUploader {
     this._setStatus('cancelled');
     
     if (this.sessionId) {
-      fetch('/api/upload/cancel', {
+      fetch('/api/upload?action=cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: this.sessionId })
