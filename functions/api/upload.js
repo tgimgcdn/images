@@ -36,6 +36,22 @@ function cleanupExpiredSessions() {
   }
 }
 
+// 获取北京时间的日期字符串 (YYYY/MM/DD)
+function getBeijingDatePath() {
+  // 获取当前UTC时间
+  const now = new Date();
+  
+  // 转换为北京时间（UTC+8）
+  const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  
+  // 格式化为 YYYY/MM/DD
+  const year = beijingTime.getUTCFullYear();
+  const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(beijingTime.getUTCDate()).padStart(2, '0');
+  
+  return `${year}/${month}/${day}`;
+}
+
 // 将 ArrayBuffer 转换为 Base64 的安全方法，避免栈溢出
 function arrayBufferToBase64(buffer) {
   // 对于大文件，分块处理
@@ -252,7 +268,8 @@ export async function onRequest(context) {
   // 完成上传
   if (action === 'complete' && request.method === 'POST') {
     try {
-      const { sessionId, fileName, mimeType } = await request.json();
+      const requestData = await request.json();
+      const { sessionId } = requestData;
       
       // 验证参数
       if (!sessionId) {
@@ -323,21 +340,36 @@ export async function onRequest(context) {
         auth: env.GITHUB_TOKEN
       });
       
-      // 防止重名，添加随机后缀
-      const fileNameParts = session.fileName.split('.');
-      const ext = fileNameParts.pop();
-      const baseName = fileNameParts.join('.');
-      const randomSuffix = Date.now().toString().slice(-6);
-      const uniqueFileName = `${baseName}_${randomSuffix}.${ext}`;
+      // 获取北京时间的日期路径
+      const datePath = getBeijingDatePath();
       
-      console.log(`准备上传文件到GitHub: ${uniqueFileName}`);
+      // 构建文件路径 - 使用原始文件名（或在必要时添加时间戳）
+      // 检查文件名是否已经包含扩展名
+      let uploadFileName = session.fileName;
+      if (!uploadFileName.includes('.')) {
+        // 如果没有扩展名，根据MIME类型添加
+        const mimeToExt = {
+          'image/jpeg': '.jpg',
+          'image/png': '.png',
+          'image/gif': '.gif',
+          'image/webp': '.webp',
+          'image/svg+xml': '.svg'
+        };
+        const ext = mimeToExt[session.mimeType] || '.jpg';
+        uploadFileName = `${uploadFileName}${ext}`;
+      }
+      
+      // 构建完整路径：public/images/年/月/日/文件名
+      const filePath = `public/images/${datePath}/${uploadFileName}`;
+      
+      console.log(`准备上传文件到GitHub: ${filePath}`);
       
       // 上传到GitHub
       const response = await octokit.rest.repos.createOrUpdateFileContents({
         owner: env.GITHUB_OWNER,
         repo: env.GITHUB_REPO,
-        path: `images/${uniqueFileName}`,
-        message: `Upload ${uniqueFileName}`,
+        path: filePath,
+        message: `Upload ${uploadFileName} (${datePath})`,
         content: base64Data,
         branch: 'main'
       });
@@ -350,10 +382,10 @@ export async function onRequest(context) {
           INSERT INTO images (filename, size, mime_type, github_path, sha)
           VALUES (?, ?, ?, ?, ?)
         `).bind(
-          uniqueFileName,
+          uploadFileName,
           session.fileSize,
           session.mimeType,
-          `images/${uniqueFileName}`,
+          filePath,
           response.data.content.sha
         ).run();
         
@@ -369,13 +401,13 @@ export async function onRequest(context) {
       sessionExpiry.delete(sessionId);
       
       // 返回链接信息
-      const imageUrl = `${env.SITE_URL}/images/${uniqueFileName}`;
+      const imageUrl = `${env.SITE_URL}/images/${datePath}/${uploadFileName}`;
       return new Response(JSON.stringify({
         success: true,
         data: {
           url: imageUrl,
-          markdown: `![${uniqueFileName}](${imageUrl})`,
-          html: `<img src="${imageUrl}" alt="${uniqueFileName}">`,
+          markdown: `![${uploadFileName}](${imageUrl})`,
+          html: `<img src="${imageUrl}" alt="${uploadFileName}">`,
           bbcode: `[img]${imageUrl}[/img]`
         }
       }), {
