@@ -1606,4 +1606,41 @@ input[type="password"].form-control {
         max-height: 80vh;
         overflow-y: auto;
     }
+}
+
+/* 图片错误覆盖层样式 */
+.image-error-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 5;
+}
+
+.reload-image-btn {
+    background-color: rgba(255, 255, 255, 0.7);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.reload-image-btn:hover {
+    background-color: white;
+    transform: scale(1.1);
+}
+
+.reload-image-btn i {
+    color: #333;
+    font-size: 20px;
 } 
