@@ -316,83 +316,81 @@ document.addEventListener('DOMContentLoaded', async () => {
         const uploadProgress = document.querySelector('.upload-progress');
         uploadProgress.style.display = 'none';
         
-        // 获取第一个结果用于显示
-        const firstResult = results[0];
-        
-        if (!firstResult) {
+        if (results.length === 0 || !results[0]) {
             showToast('上传成功，但未返回链接信息');
             return;
         }
         
-        // 更新各种链接格式
-        const linkInputs = document.querySelectorAll('.link-input');
+        // 清空原有链接显示区域
+        const resultContent = document.querySelector('.result-content');
+        const linkGroups = resultContent.querySelectorAll('.link-group, .link-item');
+        linkGroups.forEach(group => group.remove());
         
-        // 直接链接
-        linkInputs[0].value = firstResult.url;
+        // 按照格式分组创建链接
         
-        // Markdown
-        linkInputs[1].value = firstResult.markdown;
+        // URL链接组
+        const urlItem = document.createElement('div');
+        urlItem.className = 'link-item';
+        let urlLinks = '';
+        results.forEach(result => {
+            urlLinks += result.url + '\n';
+        });
+        urlItem.innerHTML = `
+            <label>直接链接</label>
+            <div class="input-group">
+                <textarea class="link-input" readonly>${urlLinks.trim()}</textarea>
+                <button class="copy-btn" data-type="url">复制</button>
+            </div>
+        `;
+        resultContent.appendChild(urlItem);
         
-        // HTML
-        linkInputs[2].value = firstResult.html;
+        // Markdown链接组
+        const markdownItem = document.createElement('div');
+        markdownItem.className = 'link-item';
+        let markdownLinks = '';
+        results.forEach(result => {
+            markdownLinks += result.markdown + '\n';
+        });
+        markdownItem.innerHTML = `
+            <label>Markdown</label>
+            <div class="input-group">
+                <textarea class="link-input" readonly>${markdownLinks.trim()}</textarea>
+                <button class="copy-btn" data-type="markdown">复制</button>
+            </div>
+        `;
+        resultContent.appendChild(markdownItem);
         
-        // BBCode
-        linkInputs[3].value = firstResult.bbcode;
+        // HTML链接组
+        const htmlItem = document.createElement('div');
+        htmlItem.className = 'link-item';
+        let htmlLinks = '';
+        results.forEach(result => {
+            htmlLinks += result.html + '\n';
+        });
+        htmlItem.innerHTML = `
+            <label>HTML</label>
+            <div class="input-group">
+                <textarea class="link-input" readonly>${htmlLinks.trim()}</textarea>
+                <button class="copy-btn" data-type="html">复制</button>
+            </div>
+        `;
+        resultContent.appendChild(htmlItem);
         
-        // 如果有多个文件，显示附加信息
-        if (results.length > 1) {
-            // 添加多文件上传信息
-            const multipleFilesNotice = document.createElement('div');
-            multipleFilesNotice.className = 'multiple-files-notice';
-            multipleFilesNotice.innerHTML = `
-                <p>成功上传了 ${results.length} 个文件：</p>
-                <div class="all-links"></div>
-            `;
-            
-            document.querySelector('.result-content').appendChild(multipleFilesNotice);
-            
-            // 添加所有文件的链接
-            const allLinksContainer = multipleFilesNotice.querySelector('.all-links');
-            results.forEach((result, index) => {
-                const linkItem = document.createElement('div');
-                linkItem.className = 'all-link-item';
-                linkItem.innerHTML = `
-                    <h4>文件 ${index + 1}</h4>
-                    <div class="link-rows">
-                        <div class="link-row">
-                            <span class="link-label">URL:</span>
-                            <input type="text" value="${result.url}" readonly>
-                            <button class="copy-all-btn" data-link="${result.url}">复制</button>
-                        </div>
-                        <div class="link-row">
-                            <span class="link-label">Markdown:</span>
-                            <input type="text" value="${result.markdown}" readonly>
-                            <button class="copy-all-btn" data-link="${result.markdown}">复制</button>
-                        </div>
-                        <div class="link-row">
-                            <span class="link-label">HTML:</span>
-                            <input type="text" value="${result.html}" readonly>
-                            <button class="copy-all-btn" data-link="${result.html}">复制</button>
-                        </div>
-                        <div class="link-row">
-                            <span class="link-label">BBCode:</span>
-                            <input type="text" value="${result.bbcode}" readonly>
-                            <button class="copy-all-btn" data-link="${result.bbcode}">复制</button>
-                        </div>
-                    </div>
-                `;
-                allLinksContainer.appendChild(linkItem);
-            });
-            
-            // 添加复制按钮事件
-            document.querySelectorAll('.copy-all-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const linkValue = btn.getAttribute('data-link');
-                    copyToClipboard(linkValue);
-                    showToast('链接已复制到剪贴板', 'success');
-                });
-            });
-        }
+        // BBCode链接组
+        const bbcodeItem = document.createElement('div');
+        bbcodeItem.className = 'link-item';
+        let bbcodeLinks = '';
+        results.forEach(result => {
+            bbcodeLinks += result.bbcode + '\n';
+        });
+        bbcodeItem.innerHTML = `
+            <label>BBCode</label>
+            <div class="input-group">
+                <textarea class="link-input" readonly>${bbcodeLinks.trim()}</textarea>
+                <button class="copy-btn" data-type="bbcode">复制</button>
+            </div>
+        `;
+        resultContent.appendChild(bbcodeItem);
         
         // 显示结果容器
         document.querySelector('.result-container').style.display = 'block';
@@ -400,7 +398,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 添加复制按钮事件
         document.querySelectorAll('.copy-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                const type = btn.getAttribute('data-type');
                 const inputElement = btn.previousElementSibling;
                 copyToClipboard(inputElement.value);
                 showToast('链接已复制到剪贴板', 'success');
