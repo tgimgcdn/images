@@ -709,12 +709,18 @@ function initBatchOperations() {
             // 根据格式生成复制内容，每个链接一行
             let copyText = '';
             selectedImages.forEach(img => {
+                // 对URL进行处理，编码特殊字符以确保Markdown能正确解析
+                const encodedUrl = img.url
+                    .replace(/\(/g, '%28')
+                    .replace(/\)/g, '%29')
+                    .replace(/\s/g, '%20');
+                
                 switch(format) {
                     case 'url':
                         copyText += `${img.url}\n`;
                         break;
                     case 'markdown':
-                        copyText += `![${img.filename}](${img.url})\n`;
+                        copyText += `![${img.filename}](${encodedUrl})\n`;
                         break;
                     case 'bbcode':
                         copyText += `[img]${img.url}[/img]\n`;
@@ -1333,7 +1339,12 @@ function createImageCard(image) {
                     copyText = url;
                     break;
                 case 'markdown':
-                    copyText = `![${filename}](${url})`;
+                    // 对URL进行处理，编码特殊字符以确保Markdown能正确解析
+                    const encodedUrl = url
+                        .replace(/\(/g, '%28')
+                        .replace(/\)/g, '%29')
+                        .replace(/\s/g, '%20');
+                    copyText = `![${filename}](${encodedUrl})`;
                     break;
                 case 'bbcode':
                     copyText = `[img]${url}[/img]`;
