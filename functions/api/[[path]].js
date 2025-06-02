@@ -443,10 +443,26 @@ export async function onRequest(context) {
             .reduce((data, byte) => data + String.fromCharCode(byte), '')
         );
         
+        // 获取当前时间并转换为北京时间
+        const now = new Date();
+        // 调整为北京时间（UTC+8）
+        const beijingNow = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+        
+        // 构建按年/月/日的目录结构
+        const year = beijingNow.getUTCFullYear();
+        const month = String(beijingNow.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(beijingNow.getUTCDate()).padStart(2, '0');
+        const datePath = `${year}/${month}/${day}`;
+        
+        // 构建文件存储路径
+        const filePath = `public/images/${datePath}/${file.name}`;
+        
+        console.log('构建的文件存储路径:', filePath);
+        
         console.log('GitHub 配置:', {
           owner: env.GITHUB_OWNER,
           repo: env.GITHUB_REPO,
-          path: `public/images/${file.name}`
+          path: filePath
         });
 
         try {
@@ -484,12 +500,12 @@ export async function onRequest(context) {
             const existingFile = await octokit.rest.repos.getContent({
               owner: env.GITHUB_OWNER,
               repo: env.GITHUB_REPO,
-              path: `public/images/${file.name}`,
+              path: filePath,
               ref: 'main'
             });
             
             if (existingFile.status === 200) {
-              console.error('文件已存在:', file.name);
+              console.error('文件已存在:', filePath);
               return new Response(JSON.stringify({ 
                 error: `文件 "${file.name}" 已存在，请重命名后再上传或选择其他文件`,
                 details: 'File already exists'
@@ -512,8 +528,8 @@ export async function onRequest(context) {
           const response = await octokit.rest.repos.createOrUpdateFileContents({
             owner: env.GITHUB_OWNER,
             repo: env.GITHUB_REPO,
-            path: `public/images/${file.name}`,
-            message: `Upload ${file.name}`,
+            path: filePath,
+            message: `Upload ${file.name} to ${datePath}`,
             content: base64,
             branch: 'main'
           });
@@ -523,10 +539,6 @@ export async function onRequest(context) {
           // 保存到数据库
           console.log('开始保存到数据库');
           
-          // 获取当前时间并转换为北京时间
-          const now = new Date();
-          // 调整为北京时间（UTC+8）
-          const beijingNow = new Date(now.getTime() + (8 * 60 * 60 * 1000));
           // 格式化为 YYYY-MM-DD HH:MM:SS 格式
           const beijingTimeString = beijingNow.toISOString().replace('T', ' ').split('.')[0];
           
@@ -539,7 +551,7 @@ export async function onRequest(context) {
             file.name,
             file.size,
             file.type,
-            `public/images/${file.name}`,
+            filePath,
             response.data.content.sha,
             beijingTimeString,
             beijingTimeString
@@ -547,8 +559,8 @@ export async function onRequest(context) {
 
           console.log('数据库保存成功');
 
-          // 返回各种格式的链接
-          const imageUrl = `${env.SITE_URL}/images/${file.name}`;
+          // 返回各种格式的链接 - 使用包含年月日的完整路径
+          const imageUrl = `${env.SITE_URL}/images/${datePath}/${file.name}`;
           console.log('返回图片链接:', imageUrl);
 
           return new Response(JSON.stringify({
@@ -574,7 +586,7 @@ export async function onRequest(context) {
             request: {
               owner: env.GITHUB_OWNER,
               repo: env.GITHUB_REPO,
-              path: `public/images/${file.name}`
+              path: filePath
             }
           });
           
