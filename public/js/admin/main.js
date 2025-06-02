@@ -682,7 +682,7 @@ function initBatchOperations() {
             
             // 查找图片URL和文件名
             const imageElement = card.querySelector('.image-preview img');
-            const url = imageElement ? imageElement.src : '';
+            const url = imageElement ? imageElement.getAttribute('data-original-url') : '';
             const filename = card.querySelector('.image-filename').getAttribute('title');
             
             selectedImages.push({ id, url, filename });
@@ -1121,7 +1121,7 @@ function createImageCard(image) {
     
     card.innerHTML = `
         <div class="image-preview">
-            <img src="${thumbnailUrl}" alt="${image.filename}" loading="lazy">
+            <img src="${thumbnailUrl}" alt="${image.filename}" loading="lazy" data-original-url="${image.url}">
             <div class="image-error-overlay" style="display:none">
                 <button class="reload-image-btn" title="重新加载图片">
                     <i class="fas fa-sync-alt"></i>
@@ -1186,8 +1186,68 @@ function createImageCard(image) {
         imgElement.src = newUrl;
     });
     
-    // 添加点击预览大图功能
+    // 获取图片预览容器，下面添加点击和右键菜单功能
     const imagePreview = card.querySelector('.image-preview');
+    
+    // 添加右键菜单功能
+    imagePreview.addEventListener('contextmenu', function(e) {
+        e.preventDefault(); // 阻止默认右键菜单
+        
+        // 创建上下文菜单
+        const contextMenu = document.createElement('div');
+        contextMenu.className = 'image-context-menu';
+        contextMenu.innerHTML = `
+            <div class="context-menu-item" data-action="open">
+                <i class="fas fa-external-link-alt"></i> 在新窗口打开图片
+            </div>
+            <div class="context-menu-item" data-action="copy">
+                <i class="fas fa-copy"></i> 复制图片链接
+            </div>
+        `;
+        
+        // 设置菜单位置
+        contextMenu.style.position = 'fixed';
+        contextMenu.style.top = `${e.clientY}px`;
+        contextMenu.style.left = `${e.clientX}px`;
+        contextMenu.style.zIndex = '9999';
+        document.body.appendChild(contextMenu);
+        
+        // 点击菜单项
+        contextMenu.querySelectorAll('.context-menu-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const action = this.dataset.action;
+                const originalURL = imgElement.getAttribute('data-original-url');
+                
+                if (action === 'open') {
+                    // 在新窗口打开原始URL
+                    window.open(originalURL, '_blank');
+                } else if (action === 'copy') {
+                    // 复制原始URL
+                    navigator.clipboard.writeText(originalURL)
+                        .then(() => showNotification('已复制图片链接', 'success'))
+                        .catch(err => showNotification('复制失败: ' + err, 'error'));
+                }
+                
+                // 移除菜单
+                contextMenu.remove();
+            });
+        });
+        
+        // 点击其他地方关闭菜单
+        const closeMenu = function(e) {
+            if (!contextMenu.contains(e.target)) {
+                contextMenu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        
+        // 使用setTimeout确保当前右键点击不会立即关闭菜单
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 0);
+    });
+    
+    // 添加点击预览大图功能
     imagePreview.addEventListener('click', function() {
         const fullsizePreview = document.querySelector('.fullsize-preview');
         const previewImg = fullsizePreview.querySelector('img');
