@@ -177,10 +177,18 @@ export async function onRequest(context) {
       
       // 保存到数据库 - 使用北京时间而不是UTC时间
       try {
-        // 获取当前北京时间的ISO格式字符串
+        // 获取当前北京时间的格式字符串
         const now = new Date();
         const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-        const beijingTimeISO = beijingTime.toISOString();
+        
+        // 使用getUTC*方法正确格式化北京时间
+        const beijingYear = beijingTime.getUTCFullYear();
+        const beijingMonth = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
+        const beijingDay = String(beijingTime.getUTCDate()).padStart(2, '0');
+        const beijingHour = String(beijingTime.getUTCHours()).padStart(2, '0');
+        const beijingMinute = String(beijingTime.getUTCMinutes()).padStart(2, '0');
+        const beijingSecond = String(beijingTime.getUTCSeconds()).padStart(2, '0');
+        const beijingTimeString = `${beijingYear}-${beijingMonth}-${beijingDay} ${beijingHour}:${beijingMinute}:${beijingSecond}`;
         
         await env.DB.prepare(`
           INSERT INTO images (filename, size, mime_type, github_path, sha, created_at, updated_at)
@@ -191,11 +199,11 @@ export async function onRequest(context) {
           file.type,
           filePath,
           response.data.content.sha,
-          beijingTimeISO,
-          beijingTimeISO
+          beijingTimeString,
+          beijingTimeString
         ).run();
         
-        console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeISO}`);
+        console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeString}`);
       } catch (dbError) {
         console.error('数据库保存失败:', dbError);
         // 继续执行，不因为数据库错误而中断响应
@@ -502,10 +510,18 @@ export async function onRequest(context) {
       
       // 保存到数据库 - 使用北京时间而非UTC时间
       try {
-        // 获取当前北京时间的ISO格式字符串
+        // 获取当前北京时间的格式字符串
         const now = new Date();
         const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-        const beijingTimeISO = beijingTime.toISOString();
+        
+        // 使用getUTC*方法正确格式化北京时间
+        const beijingYear = beijingTime.getUTCFullYear();
+        const beijingMonth = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
+        const beijingDay = String(beijingTime.getUTCDate()).padStart(2, '0');
+        const beijingHour = String(beijingTime.getUTCHours()).padStart(2, '0');
+        const beijingMinute = String(beijingTime.getUTCMinutes()).padStart(2, '0');
+        const beijingSecond = String(beijingTime.getUTCSeconds()).padStart(2, '0');
+        const beijingTimeString = `${beijingYear}-${beijingMonth}-${beijingDay} ${beijingHour}:${beijingMinute}:${beijingSecond}`;
         
         await env.DB.prepare(`
           INSERT INTO images (filename, size, mime_type, github_path, sha, created_at, updated_at)
@@ -516,11 +532,11 @@ export async function onRequest(context) {
           session.mimeType,
           filePath,
           response.data.content.sha,
-          beijingTimeISO,
-          beijingTimeISO
+          beijingTimeString,
+          beijingTimeString
         ).run();
         
-        console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeISO}`);
+        console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeString}`);
       } catch (dbError) {
         console.error('数据库保存失败:', dbError);
         // 继续执行，不因为数据库错误而中断响应
