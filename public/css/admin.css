@@ -690,17 +690,26 @@ input:checked + .slider:before {
     
     .filter-box select {
         width: 100%;
+        font-size: 12px;
+        padding: 8px;
     }
     
     .action-box .btn {
         width: 100%;
         justify-content: center;
+        font-size: 12px;
+        padding: 8px 12px;
     }
     
     /* 修改移动端图片网格布局 */
     .image-grid {
         grid-template-columns: repeat(2, 1fr); /* 手机端每行2个 */
-        gap: 10px;
+        gap: 8px;
+    }
+    
+    /* 减小图片卡片预览区域高度 */
+    .image-preview {
+        height: 120px;
     }
     
     /* 调整批量操作按钮在移动端的显示 */
@@ -739,7 +748,7 @@ input:checked + .slider:before {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        padding: 8px 5px;
+        padding: 6px 4px;
         font-size: 12px;
         width: 100%;
         min-width: 0;
@@ -763,6 +772,8 @@ input:checked + .slider:before {
         color: white;
         width: calc(100% - 2px); /* 确保不会被挤压 */
         max-width: none;
+        font-size: 11px;
+        padding: 5px 2px;
     }
     
     .btn-delete {
@@ -770,11 +781,14 @@ input:checked + .slider:before {
         color: white;
         width: calc(100% - 2px); /* 确保不会被挤压 */
         max-width: none;
+        font-size: 11px;
+        padding: 5px 2px;
     }
     
     /* 确保文件名在移动端不会被截断 */
     .image-filename {
         max-width: calc(100% - 25px);
+        font-size: 12px;
     }
     
     .image-info h3 {
@@ -786,10 +800,12 @@ input:checked + .slider:before {
         flex-direction: column;
         align-items: flex-start;
         gap: 3px;
+        font-size: 11px;
     }
     
     .file-size {
         align-self: flex-start;
+        font-size: 11px;
     }
     
     /* 修复图片操作按钮样式 */
@@ -805,6 +821,35 @@ input:checked + .slider:before {
         font-size: 11px;
         padding: 5px;
         white-space: nowrap;
+    }
+
+    /* 减少表单内边距 */
+    .settings-card {
+        padding: 15px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-control {
+        padding: 8px;
+    }
+
+    /* 减小图片预览框内部间距 */
+    .upload-area {
+        padding: 25px 15px;
+    }
+    
+    /* 减小模态框内边距 */
+    .modal-content {
+        padding: 15px;
+    }
+    
+    /* 缩小全屏预览控件 */
+    .preview-controls button {
+        width: 32px;
+        height: 32px;
     }
 }
 
@@ -1643,4 +1688,40 @@ input[type="password"].form-control {
 .reload-image-btn i {
     color: #333;
     font-size: 20px;
+}
+
+/* 移动端设备特定样式 */
+body.mobile-view {
+    font-size: 14px; /* 减小基础字体大小 */
+}
+
+body.mobile-view .admin-container {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 横屏模式特定样式 */
+body.mobile-view.landscape .image-grid {
+    grid-template-columns: repeat(4, 1fr); /* 横屏显示更多列 */
+}
+
+body.mobile-view.landscape .nav-menu li a {
+    padding: 10px 12px;
+}
+
+body.mobile-view .stat-card {
+    margin-bottom: 10px;
+}
+
+/* 提高移动端按钮的可点击性 */
+body.mobile-view button,
+body.mobile-view .btn,
+body.mobile-view select,
+body.mobile-view input[type="checkbox"] {
+    min-height: 36px; /* 确保触摸友好的最小高度 */
+}
+
+body.mobile-view .image-checkbox {
+    transform: scale(1.2);
+    margin: 5px;
 } 
