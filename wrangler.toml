@@ -8,7 +8,9 @@ upload.format = "directory"
 [site]
 bucket = "./public"
 
-[routes]
+# 默认路由
+[[routes]]
+pattern = "/*"
 script = "functions/[[path]].js"
 
 [[routes]]
