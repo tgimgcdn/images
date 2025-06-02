@@ -175,20 +175,26 @@ export async function onRequest(context) {
       
       console.log(`文件上传到GitHub成功，SHA: ${response.data.content.sha}`);
       
-      // 保存到数据库
+      // 保存到数据库 - 使用北京时间而不是UTC时间
       try {
+        // 获取当前北京时间的ISO格式字符串
+        const now = new Date();
+        const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+        const beijingTimeISO = beijingTime.toISOString();
+        
         await env.DB.prepare(`
-          INSERT INTO images (filename, size, mime_type, github_path, sha)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO images (filename, size, mime_type, github_path, sha, upload_time)
+          VALUES (?, ?, ?, ?, ?, ?)
         `).bind(
           fileName,
           file.size,
           file.type,
           filePath,
-          response.data.content.sha
+          response.data.content.sha,
+          beijingTimeISO
         ).run();
         
-        console.log(`文件信息已保存到数据库`);
+        console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeISO}`);
       } catch (dbError) {
         console.error('数据库保存失败:', dbError);
         // 继续执行，不因为数据库错误而中断响应
@@ -493,20 +499,26 @@ export async function onRequest(context) {
       
       console.log(`文件上传到GitHub成功，SHA: ${response.data.content.sha}`);
       
-      // 保存到数据库
+      // 保存到数据库 - 使用北京时间而非UTC时间
       try {
+        // 获取当前北京时间的ISO格式字符串
+        const now = new Date();
+        const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+        const beijingTimeISO = beijingTime.toISOString();
+        
         await env.DB.prepare(`
-          INSERT INTO images (filename, size, mime_type, github_path, sha)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO images (filename, size, mime_type, github_path, sha, upload_time)
+          VALUES (?, ?, ?, ?, ?, ?)
         `).bind(
           uploadFileName,
           session.fileSize,
           session.mimeType,
           filePath,
-          response.data.content.sha
+          response.data.content.sha,
+          beijingTimeISO
         ).run();
         
-        console.log(`文件信息已保存到数据库`);
+        console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeISO}`);
       } catch (dbError) {
         console.error('数据库保存失败:', dbError);
         // 继续执行，不因为数据库错误而中断响应
