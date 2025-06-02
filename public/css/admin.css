@@ -1724,4 +1724,44 @@ body.mobile-view input[type="checkbox"] {
 body.mobile-view .image-checkbox {
     transform: scale(1.2);
     margin: 5px;
+}
+
+/* 图片右键菜单样式 */
+.image-context-menu {
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    padding: 5px 0;
+    min-width: 180px;
+}
+
+.context-menu-item {
+    padding: 8px 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.context-menu-item:hover {
+    background-color: #f5f5f5;
+}
+
+.context-menu-item i {
+    width: 16px;
+    text-align: center;
+    color: var(--primary-color);
+}
+
+/* 确保右键菜单在移动端也能正常显示 */
+@media (max-width: 768px) {
+    .image-context-menu {
+        min-width: 200px;
+    }
+    
+    .context-menu-item {
+        padding: 12px 15px;
+        font-size: 16px; /* 增大字体以更容易点击 */
+    }
 } 
