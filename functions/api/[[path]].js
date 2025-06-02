@@ -522,15 +522,27 @@ export async function onRequest(context) {
 
           // 保存到数据库
           console.log('开始保存到数据库');
+          
+          // 获取当前时间并转换为北京时间
+          const now = new Date();
+          // 调整为北京时间（UTC+8）
+          const beijingNow = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+          // 格式化为 YYYY-MM-DD HH:MM:SS 格式
+          const beijingTimeString = beijingNow.toISOString().replace('T', ' ').split('.')[0];
+          
+          console.log('北京时间字符串:', beijingTimeString);
+          
           await env.DB.prepare(`
-            INSERT INTO images (filename, size, mime_type, github_path, sha)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO images (filename, size, mime_type, github_path, sha, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
           `).bind(
             file.name,
             file.size,
             file.type,
             `public/images/${file.name}`,
-            response.data.content.sha
+            response.data.content.sha,
+            beijingTimeString,
+            beijingTimeString
           ).run();
 
           console.log('数据库保存成功');
@@ -760,7 +772,7 @@ export async function onRequest(context) {
         const totalSizeResult = await env.DB.prepare('SELECT SUM(size) as total_size FROM images').first();
         const totalSize = totalSizeResult && totalSizeResult.total_size ? totalSizeResult.total_size : 0;
         
-        // 获取今日上传数量 - 直接使用当前日期，因为数据库中的时间已经是北京时间
+        // 获取今日上传数量 - 数据库中的时间已经是北京时间格式
         // 获取今天的日期字符串（格式：YYYY-MM-DD）
         const now = new Date();
         // 调整为北京时间
