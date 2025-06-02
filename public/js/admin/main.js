@@ -912,23 +912,58 @@ async function batchDeleteImages() {
 }
 
 // 显示通知消息
-function showNotification(message, type = 'info') {
+function showNotification(message, type = 'info', duration = 5000) {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
-    notification.textContent = message;
+    
+    // 处理复杂的错误对象
+    if (message instanceof Error) {
+        let errorContent = `<div class="notification-title">${message.message}</div>`;
+        if (message.details) {
+            errorContent += `<div class="notification-details">${message.details}</div>`;
+        }
+        notification.innerHTML = errorContent;
+    } else {
+        notification.textContent = message;
+    }
+    
+    // 添加关闭按钮
+    const closeButton = document.createElement('span');
+    closeButton.className = 'notification-close';
+    closeButton.innerHTML = '&times;';
+    closeButton.onclick = function(e) {
+        e.stopPropagation();
+        notification.classList.add('fade-out');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    };
+    notification.appendChild(closeButton);
     
     // 添加到页面
     document.body.appendChild(notification);
     
-    // 2秒后淡出
+    // 点击整个通知也可以关闭
+    notification.onclick = function() {
+        notification.classList.add('fade-out');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    };
+    
+    // 自动关闭
     setTimeout(() => {
         notification.classList.add('fade-out');
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
             }
-        }, 500);
-    }, 2000);
+        }, 300);
+    }, duration);
 }
 
 // 设置分页
@@ -1736,19 +1771,42 @@ function uploadFileWithProgress(file, onProgress) {
                 }
             } else {
                 let errorMessage = '上传失败';
+                let errorDetails = '';
                 try {
                     const errorResponse = JSON.parse(xhr.responseText);
                     errorMessage = errorResponse.error || `服务器错误 (${xhr.status})`;
+                    errorDetails = errorResponse.details || '';
+                    
+                    // 处理特定类型的错误
+                    if (xhr.status === 409) {
+                        // 文件已存在冲突
+                        errorMessage = `文件 "${file.name}" 已存在，请重命名后重试`;
+                    } else if (xhr.status === 413) {
+                        // 文件太大
+                        errorMessage = '文件大小超过服务器限制';
+                    } else if (xhr.status === 403) {
+                        // 权限不足
+                        errorMessage = '您没有权限上传文件';
+                        if (errorResponse.error && errorResponse.error.includes('游客上传已禁用')) {
+                            errorMessage = '游客上传已禁用，请登录后再试';
+                        }
+                    }
                 } catch (e) {
                     errorMessage = `服务器错误 (${xhr.status})`;
                 }
-                reject(new Error(errorMessage));
+                
+                const error = new Error(errorMessage);
+                error.details = errorDetails;
+                error.status = xhr.status;
+                reject(error);
             }
         });
         
         // 监听错误
         xhr.addEventListener('error', () => {
-            reject(new Error('网络错误'));
+            const error = new Error('网络连接错误，请检查您的网络连接');
+            error.isNetworkError = true;
+            reject(error);
         });
         
         xhr.addEventListener('abort', () => {
