@@ -539,8 +539,15 @@ export async function onRequest(context) {
           // 保存到数据库
           console.log('开始保存到数据库');
           
-          // 格式化为 YYYY-MM-DD HH:MM:SS 格式
-          const beijingTimeString = beijingNow.toISOString().replace('T', ' ').split('.')[0];
+          // 正确格式化为 YYYY-MM-DD HH:MM:SS 格式
+          // 不要使用toISOString()，因为它会将时间转回UTC时间
+          const beijingYear = beijingNow.getUTCFullYear();
+          const beijingMonth = String(beijingNow.getUTCMonth() + 1).padStart(2, '0');
+          const beijingDay = String(beijingNow.getUTCDate()).padStart(2, '0');
+          const beijingHour = String(beijingNow.getUTCHours()).padStart(2, '0');
+          const beijingMinute = String(beijingNow.getUTCMinutes()).padStart(2, '0');
+          const beijingSecond = String(beijingNow.getUTCSeconds()).padStart(2, '0');
+          const beijingTimeString = `${beijingYear}-${beijingMonth}-${beijingDay} ${beijingHour}:${beijingMinute}:${beijingSecond}`;
           
           console.log('北京时间字符串:', beijingTimeString);
           
