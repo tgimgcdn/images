@@ -1,12 +1,13 @@
 /**
  * ChunkUploader - 分片上传工具
  * 支持大文件分片上传，自动重试，并发控制，进度跟踪
+ * 优化版本 - 针对内存管理和CPU使用做了优化
  */
 class ChunkUploader {
   /**
    * 创建分片上传器
    * @param {Object} options 配置选项
-   * @param {number} [options.chunkSize=5*1024*1024] 分片大小（字节），默认5MB
+   * @param {number} [options.chunkSize=2*1024*1024] 分片大小（字节），默认2MB
    * @param {number} [options.concurrency=3] 并发上传数，默认3
    * @param {number} [options.retries=3] 失败重试次数，默认3
    * @param {string} [options.apiBase=''] API基础路径
@@ -18,7 +19,7 @@ class ChunkUploader {
   constructor(options = {}) {
     // 默认配置
     this.options = {
-      chunkSize: 5 * 1024 * 1024, // 默认5MB
+      chunkSize: 2 * 1024 * 1024, // 默认2MB，减小以避免内存压力
       concurrency: 3,             // 默认并发数
       retries: 3,                 // 默认重试次数
       apiBase: '',                // API基础路径
@@ -97,22 +98,26 @@ class ChunkUploader {
       const initResult = await this._initUpload(file, extraData);
       this.status.uploadId = initResult.upload_id;
       
-      // 创建分片
-      const chunks = this._createChunks(file, initResult.chunk_size || this.options.chunkSize);
-      this.status.totalChunks = chunks.length;
+      // 使用服务器返回的分片大小或默认值
+      const chunkSize = initResult.chunk_size || this.options.chunkSize;
+      
+      // 计算分片数量而不是立即创建分片，减少内存使用
+      this.status.totalChunks = Math.ceil(file.size / chunkSize);
       this.queue = [];
       
-      // 准备上传队列
-      for (let i = 0; i < chunks.length; i++) {
+      // 准备上传队列，仅准备分片索引，不实际切割文件
+      for (let i = 0; i < this.status.totalChunks; i++) {
         this.queue.push({
           index: i,
-          blob: chunks[i],
+          chunkSize: chunkSize,
+          start: i * chunkSize,
+          end: Math.min((i + 1) * chunkSize, file.size),
           attempts: 0,
           status: 'pending'
         });
       }
       
-      this._updateStatus('uploading', `准备上传 ${chunks.length} 个分片`);
+      this._updateStatus('uploading', `准备上传 ${this.status.totalChunks} 个分片`);
       
       // 启动状态检查轮询
       this._startStatusPolling();
@@ -262,11 +267,14 @@ class ChunkUploader {
     chunk.attempts++;
     
     try {
+      // 此时才从文件中切割出实际的分片数据，减少内存占用
+      const blob = this.status.file.slice(chunk.start, chunk.end);
+      
       const formData = new FormData();
       formData.append('upload_id', this.status.uploadId);
       formData.append('chunk_index', chunk.index);
       formData.append('total_chunks', this.status.totalChunks);
-      formData.append('chunk', chunk.blob);
+      formData.append('chunk', blob);
       
       const startTime = Date.now();
       const response = await fetch(`${this.options.apiBase}/api/upload/chunk`, {
@@ -297,7 +305,7 @@ class ChunkUploader {
       
       // 更新处理字节数和时间
       const endTime = Date.now();
-      const chunkSize = chunk.blob.size;
+      const chunkSize = chunk.end - chunk.start;
       this.processedBytes += chunkSize;
       this.uploadedBytesSinceLastUpdate += chunkSize;
       this.totalProcessingTime += (endTime - startTime);
@@ -448,27 +456,6 @@ class ChunkUploader {
       this.lastProgressUpdate = now;
       this.uploadedBytesSinceLastUpdate = 0;
     }
-  }
-  
-  /**
-   * 将文件分割成小块
-   * @private
-   * @param {File} file 要分片的文件
-   * @param {number} chunkSize 分片大小
-   * @returns {Array<Blob>} 分片数组
-   */
-  _createChunks(file, chunkSize) {
-    const chunks = [];
-    let start = 0;
-    
-    while (start < file.size) {
-      const end = Math.min(start + chunkSize, file.size);
-      const chunk = file.slice(start, end);
-      chunks.push(chunk);
-      start = end;
-    }
-    
-    return chunks;
   }
   
   /**
