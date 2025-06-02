@@ -1818,8 +1818,36 @@ async function uploadSelectedFiles(files) {
         try {
             console.log(`开始上传文件: ${file.name}, 类型: ${file.type}, 大小: ${file.size} 字节`);
             
-            // 使用XMLHttpRequest替代fetch以便跟踪上传进度
-            const result = await uploadFileWithProgress(file, (loaded, total) => {
+            // 定义文件大小阈值，超过此值使用分块上传
+            const CHUNK_SIZE_THRESHOLD = 5 * 1024 * 1024; // 5MB
+            
+            let result;
+            
+            if (file.size > CHUNK_SIZE_THRESHOLD && window.ChunkedUploader) {
+                // 大文件，使用分块上传
+                console.log(`文件大小超过${formatFileSize(CHUNK_SIZE_THRESHOLD)}，使用分块上传`);
+                result = await uploadLargeFileWithChunks(file, (progress) => {
+                    // 计算总体进度 (已上传完成的文件 + 当前文件的进度)
+                    const currentFileContribution = progress.uploadedSize / totalBytes;
+                    const completedFilesContribution = uploadedBytes / totalBytes;
+                    const overallProgress = completedFilesContribution + currentFileContribution;
+                    const percent = Math.min(100, Math.round(overallProgress * 100));
+                    
+                    // 更新进度条
+                    progressBar.style.width = percent + '%';
+                    progressText.textContent = percent + '%';
+                    
+                    // 计算上传速度
+                    const elapsedSeconds = (Date.now() - startTime) / 1000;
+                    if (elapsedSeconds > 0) {
+                        const speed = (uploadedBytes + progress.uploadedSize) / elapsedSeconds;
+                        progressSpeed.textContent = formatFileSize(speed, 2) + '/s';
+                    }
+                });
+            } else {
+                // 使用普通上传方式
+                console.log(`使用普通上传方式`);
+                result = await uploadFileWithProgress(file, (loaded, total) => {
                 // 更新当前文件的进度
                 const currentFileProgress = loaded / total;
                 
@@ -1838,6 +1866,7 @@ async function uploadSelectedFiles(files) {
                     progressSpeed.textContent = formatFileSize(speed, 2) + '/s';
                 }
             });
+            }
             
             uploadedCount++;
             uploadedBytes += file.size;
@@ -1966,12 +1995,67 @@ function uploadFileWithProgress(file, onProgress) {
             reject(new Error('上传已取消'));
         });
         
-        // 发送请求
-        xhr.open('POST', '/api/upload', true);
+        // 发送请求 - 使用查询参数
+        xhr.open('POST', '/api/upload?action=upload', true);
         xhr.withCredentials = true; // 包含凭据
         xhr.send(formData);
     });
 }
+
+// 使用分块上传处理大文件
+function uploadLargeFileWithChunks(file, onProgress) {
+    return new Promise((resolve, reject) => {
+        try {
+            console.log(`初始化分块上传: ${file.name}`);
+            
+            // 创建分块上传器
+            const uploader = new ChunkedUploader(file, {
+                // 进度更新回调
+                onProgress: (progressData) => {
+                    if (onProgress) {
+                        onProgress(progressData);
+                    }
+                },
+                // 上传完成回调
+                onComplete: (result) => {
+                    console.log('分块上传完成:', result);
+                    resolve(result);
+                },
+                // 错误处理回调
+                onError: (error) => {
+                    console.error('分块上传失败:', error);
+                    reject(error);
+                }
+            });
+            
+            // 开始上传
+            uploader.start();
+            
+        } catch (error) {
+            console.error('初始化分块上传失败:', error);
+            reject(error);
+        }
+    });
+}
+
+// 确保在页面加载时动态加载分块上传模块
+document.addEventListener('DOMContentLoaded', function() {
+    // 检查是否已经加载ChunkedUploader
+    if (!window.ChunkedUploader) {
+        console.log('加载分块上传模块...');
+        // 创建脚本标签
+        const script = document.createElement('script');
+        script.src = '/js/chunked-uploader.js';
+        script.async = true;
+        script.onload = function() {
+            console.log('分块上传模块加载完成');
+        };
+        script.onerror = function() {
+            console.error('无法加载分块上传模块');
+        };
+        document.head.appendChild(script);
+    }
+});
 
 // 新增函数，用于在移动端设备上优化初始加载
 function optimizeForMobileDevices() {
