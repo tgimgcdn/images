@@ -450,6 +450,65 @@ export async function onRequest(context) {
         });
 
         try {
+          // 首先检查GitHub配置是否存在
+          if (!env.GITHUB_TOKEN) {
+            console.error('GitHub Token未配置');
+            return new Response(JSON.stringify({ 
+              error: 'GitHub Token未配置，请联系管理员设置系统配置',
+              details: 'Missing GitHub Token'
+            }), {
+              status: 500,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+          if (!env.GITHUB_OWNER || !env.GITHUB_REPO) {
+            console.error('GitHub仓库信息未配置完整');
+            return new Response(JSON.stringify({ 
+              error: 'GitHub仓库配置不完整，请联系管理员设置系统配置',
+              details: 'Missing GitHub Repository Information'
+            }), {
+              status: 500,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+
+          // 尝试获取已存在的文件信息，用于检查文件是否已存在
+          try {
+            const existingFile = await octokit.rest.repos.getContent({
+              owner: env.GITHUB_OWNER,
+              repo: env.GITHUB_REPO,
+              path: `public/images/${file.name}`,
+              ref: 'main'
+            });
+            
+            if (existingFile.status === 200) {
+              console.error('文件已存在:', file.name);
+              return new Response(JSON.stringify({ 
+                error: `文件 "${file.name}" 已存在，请重命名后再上传或选择其他文件`,
+                details: 'File already exists'
+              }), {
+                status: 409, // Conflict
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...corsHeaders
+                }
+              });
+            }
+          } catch (existingFileError) {
+            // 如果文件不存在，会抛出404错误，这是我们希望的情况
+            if (existingFileError.status !== 404) {
+              // 如果是其他错误，记录下来，但继续尝试上传
+              console.warn('检查文件是否存在时出错:', existingFileError);
+            }
+          }
+
           const response = await octokit.rest.repos.createOrUpdateFileContents({
             owner: env.GITHUB_OWNER,
             repo: env.GITHUB_REPO,
@@ -507,9 +566,43 @@ export async function onRequest(context) {
             }
           });
           
+          // 处理不同类型的GitHub API错误
           if (error.status === 404) {
             return new Response(JSON.stringify({ 
               error: 'GitHub 仓库配置错误，请检查仓库名称和权限设置',
+              details: error.message
+            }), {
+              status: 500,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          } else if (error.status === 409) {
+            return new Response(JSON.stringify({ 
+              error: `文件 "${file.name}" 已存在，请重命名后再上传或选择其他文件`,
+              details: 'File name conflict'
+            }), {
+              status: 409,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          } else if (error.status === 401 || error.status === 403) {
+            return new Response(JSON.stringify({ 
+              error: 'GitHub 授权失败，请检查Token是否正确或是否有足够的权限',
+              details: error.message
+            }), {
+              status: 500,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          } else if (error.message && error.message.includes('network')) {
+            return new Response(JSON.stringify({ 
+              error: '网络连接错误，无法连接到GitHub服务器',
               details: error.message
             }), {
               status: 500,
@@ -534,7 +627,35 @@ export async function onRequest(context) {
             hasDB: !!env.DB
           }
         });
-        return new Response(JSON.stringify({ error: '上传失败' }), {
+        
+        // 提供更具体的错误信息
+        let errorMessage = '上传失败';
+        
+        if (!env.GITHUB_TOKEN) {
+          errorMessage = 'GitHub Token未配置，请联系管理员';
+        } else if (!env.GITHUB_OWNER || !env.GITHUB_REPO) {
+          errorMessage = 'GitHub仓库配置不完整，请联系管理员';
+        } else if (!env.SITE_URL) {
+          errorMessage = '站点URL未配置，请联系管理员';
+        } else if (!env.DB) {
+          errorMessage = '数据库连接失败，请联系管理员';
+        } else if (error.message) {
+          // 自定义一些常见错误的更友好描述
+          if (error.message.includes('already exists')) {
+            errorMessage = `文件 "${file.name}" 已存在，请重命名后重试`;
+          } else if (error.message.includes('network')) {
+            errorMessage = '网络连接错误，请检查您的网络连接';
+          } else if (error.message.includes('permission') || error.message.includes('权限')) {
+            errorMessage = 'GitHub权限不足，请联系管理员检查配置';
+          } else {
+            errorMessage = `上传失败: ${error.message}`;
+          }
+        }
+        
+        return new Response(JSON.stringify({ 
+          error: errorMessage,
+          details: error.message
+        }), {
           status: 500,
           headers: {
             'Content-Type': 'application/json',
