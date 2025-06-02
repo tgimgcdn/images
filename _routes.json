@@ -4,48 +4,68 @@
   "exclude": ["/images/*"],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/functions/api/[[path]].js"
+      "pattern": "/api/upload/create-session",
+      "script": "functions/api/upload.js"
     },
     {
-      "src": "/admin/login.html",
-      "dest": "/public/admin/login.html"
+      "pattern": "/api/upload/chunk",
+      "script": "functions/api/upload.js"
     },
     {
-      "src": "/admin/login$",
-      "dest": "/public/admin/login.html"
+      "pattern": "/api/upload/complete",
+      "script": "functions/api/upload.js"
     },
     {
-      "src": "/admin$",
-      "dest": "/public/admin/index.html"
+      "pattern": "/api/upload/cancel",
+      "script": "functions/api/upload.js"
     },
     {
-      "src": "/admin/(.*)",
-      "dest": "/functions/admin/[[path]].js"
+      "pattern": "/api/upload",
+      "script": "functions/api/upload.js"
     },
     {
-      "src": "/js/(.*)",
-      "dest": "/public/js/$1"
+      "pattern": "/api/admin/login",
+      "script": "functions/api/[[path]].js"
     },
     {
-      "src": "/css/(.*)",
-      "dest": "/public/css/$1"
+      "pattern": "/api/admin/logout",
+      "script": "functions/api/[[path]].js"
     },
     {
-      "src": "/images/([0-9]{4}/[0-9]{2}/[0-9]{2}/.*)",
-      "dest": "/public/images/$1"
+      "pattern": "/api/admin/change-password",
+      "script": "functions/api/[[path]].js"
     },
     {
-      "src": "/images/(.*)",
-      "dest": "/public/images/$1"
+      "pattern": "/api/admin/recaptcha-config",
+      "script": "functions/api/[[path]].js"
     },
     {
-      "src": "/$",
-      "dest": "/public/index.html"
+      "pattern": "/api/settings/guest-upload",
+      "script": "functions/api/[[path]].js"
     },
     {
-      "src": "/(.*)",
-      "dest": "/public/$1"
+      "pattern": "/api/settings",
+      "script": "functions/api/[[path]].js"
+    },
+    {
+      "pattern": "/api/stats/summary",
+      "script": "functions/api/[[path]].js"
+    },
+    {
+      "pattern": "/api/health",
+      "script": "functions/api/[[path]].js"
+    },
+    {
+      "pattern": "/api/*",
+      "script": "functions/api/[[path]].js"
+    },
+    {
+      "pattern": "/admin/*",
+      "script": "functions/admin/[[path]].js"
+    },
+    {
+      "pattern": "/*",
+      "script": "functions/[[path]].js"
     }
   ]
 } 
