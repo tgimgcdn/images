@@ -1,6 +1,15 @@
 import { Octokit } from 'octokit';
 import bcrypt from 'bcryptjs';
 
+// 辅助函数：格式化文件大小
+function formatSize(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 // 分片合并处理函数
 async function handleChunkMerging(env, uploadId) {
   console.log(`开始合并分片, 上传ID: ${uploadId}`);
@@ -491,6 +500,63 @@ export async function onRequest(context) {
       }
 
       try {
+        console.log('开始处理上传初始化请求');
+        
+        // 检查数据库连接
+        if (!env.DB) {
+          console.error('数据库对象不存在');
+          return new Response(JSON.stringify({ 
+            error: '服务器配置错误: 数据库连接失败', 
+            details: '数据库环境变量未正确配置' 
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 检查KV存储
+        if (!env.KV) {
+          console.error('KV存储对象不存在');
+          return new Response(JSON.stringify({ 
+            error: '服务器配置错误: KV存储连接失败',
+            details: 'KV存储环境变量未正确配置'
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 验证GitHub配置
+        const accessToken = await env.KV.get('gh_token');
+        const owner = await env.KV.get('gh_owner');
+        const repo = await env.KV.get('gh_repo');
+        
+        console.log('GitHub配置检查:', {
+          hasToken: !!accessToken,
+          hasOwner: !!owner,
+          hasRepo: !!repo
+        });
+        
+        if (!accessToken || !owner || !repo) {
+          console.error('GitHub配置不完整');
+          return new Response(JSON.stringify({ 
+            error: 'GitHub配置不完整',
+            details: '请检查KV存储中的gh_token, gh_owner和gh_repo键值' 
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
         // 检查游客上传权限
         console.log('检查游客上传权限');
         
@@ -525,9 +591,21 @@ export async function onRequest(context) {
 
         // 解析请求数据
         const data = await request.json();
+        console.log('接收到的初始化数据:', {
+          filename: data.filename,
+          size: data.size,
+          type: data.type,
+          totalChunks: data.total_chunks
+        });
+        
         const { filename, size, type, total_chunks } = data;
         
         if (!filename || !size || !total_chunks) {
+          console.error('缺少初始化参数:', {
+            hasFilename: !!filename,
+            hasSize: !!size, 
+            hasTotalChunks: !!total_chunks
+          });
           return new Response(JSON.stringify({ 
             error: '缺少必要参数'
           }), {
@@ -541,7 +619,7 @@ export async function onRequest(context) {
 
         // 检查文件类型
         try {
-          console.log('检查文件类型');
+          console.log('检查文件类型:', type);
           const allowedTypesSettings = await env.DB.prepare(
             'SELECT value FROM settings WHERE key = ?'
           ).bind('allowed_types').first();
@@ -586,6 +664,7 @@ export async function onRequest(context) {
         // 检查文件大小
         const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
         if (size > MAX_FILE_SIZE) {
+          console.log('文件大小超过限制:', formatSize(size));
           return new Response(JSON.stringify({ error: '文件大小超过限制 (最大 25MB)' }), {
             status: 400,
             headers: {
@@ -611,45 +690,98 @@ export async function onRequest(context) {
         
         // 构建文件存储路径
         const filePath = `public/images/${datePath}/${filename}`;
+        console.log('构建文件路径:', filePath);
         
         // 确保uploads表存在
         try {
-          // 尝试执行一个简单的查询，如果表不存在会抛出错误
-          await env.DB.prepare('SELECT 1 FROM uploads LIMIT 1').first();
+          console.log('检查uploads表是否存在');
+          // 首先检查表是否存在
+          const tableExists = await env.DB.prepare(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='uploads'"
+          ).first();
+          
+          if (!tableExists) {
+            console.log('uploads表不存在，创建表');
+            
+            try {
+              await env.DB.exec(`
+                CREATE TABLE IF NOT EXISTS uploads (
+                  id TEXT PRIMARY KEY,
+                  filename TEXT NOT NULL,
+                  filepath TEXT NOT NULL,
+                  size INTEGER NOT NULL,
+                  mime_type TEXT,
+                  total_chunks INTEGER NOT NULL,
+                  completed_chunks INTEGER DEFAULT 0,
+                  status TEXT NOT NULL,
+                  error TEXT,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+              `);
+              console.log('uploads表创建成功');
+            } catch (createError) {
+              console.error('创建uploads表失败:', createError);
+              return new Response(JSON.stringify({
+                error: '服务器错误',
+                details: '创建uploads表失败: ' + createError.message
+              }), {
+                status: 500,
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...corsHeaders
+                }
+              });
+            }
+          } else {
+            console.log('uploads表已存在');
+          }
         } catch (tableError) {
-          console.log('uploads表不存在，创建表');
-          await env.DB.exec(`
-            CREATE TABLE IF NOT EXISTS uploads (
-              id TEXT PRIMARY KEY,
-              filename TEXT NOT NULL,
-              filepath TEXT NOT NULL,
-              size INTEGER NOT NULL,
-              mime_type TEXT,
-              total_chunks INTEGER NOT NULL,
-              completed_chunks INTEGER DEFAULT 0,
-              status TEXT NOT NULL,
-              error TEXT,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-          `);
+          console.error('检查uploads表失败:', tableError);
+          return new Response(JSON.stringify({
+            error: '服务器错误',
+            details: '检查uploads表失败: ' + tableError.message
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
         }
         
         // 在数据库中创建临时上传记录
-        await env.DB.prepare(`
-          INSERT INTO uploads (id, filename, filepath, size, mime_type, total_chunks, completed_chunks, status, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        `).bind(
-          uploadId,
-          filename,
-          filePath,
-          size,
-          type || 'application/octet-stream',
-          total_chunks,
-          0,
-          'pending'
-        ).run();
+        console.log('创建上传记录:', uploadId);
+        try {
+          await env.DB.prepare(`
+            INSERT INTO uploads (id, filename, filepath, size, mime_type, total_chunks, completed_chunks, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          `).bind(
+            uploadId,
+            filename,
+            filePath,
+            size,
+            type || 'application/octet-stream',
+            total_chunks,
+            0,
+            'pending'
+          ).run();
+          
+          console.log('上传记录创建成功');
+        } catch (dbError) {
+          console.error('创建上传记录失败:', dbError);
+          return new Response(JSON.stringify({
+            error: '服务器错误',
+            details: '创建上传记录失败: ' + dbError.message
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
         
-        console.log('初始化上传:', {
+        console.log('初始化上传完成:', {
           uploadId,
           filename,
           filePath,
@@ -670,11 +802,12 @@ export async function onRequest(context) {
         });
         
       } catch (error) {
-        console.error('初始化上传错误:', error);
+        console.error('初始化上传错误:', error.stack || error);
         return new Response(JSON.stringify({
           success: false,
           error: '初始化上传失败',
-          details: error.message
+          details: error.message,
+          stack: isDebugMode ? error.stack : undefined
         }), {
           status: 500,
           headers: {
@@ -698,16 +831,54 @@ export async function onRequest(context) {
       }
 
       try {
+        console.log('开始处理分片上传请求');
+        
+        // 验证KV配置
+        const accessToken = await env.KV.get('gh_token');
+        const owner = await env.KV.get('gh_owner');
+        const repo = await env.KV.get('gh_repo');
+        
+        console.log('GitHub配置检查:', {
+          hasToken: !!accessToken,
+          hasOwner: !!owner,
+          hasRepo: !!repo
+        });
+        
+        if (!accessToken || !owner || !repo) {
+          console.error('GitHub配置不完整:', {
+            hasToken: !!accessToken,
+            hasOwner: !!owner, 
+            hasRepo: !!repo
+          });
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'GitHub存储配置错误',
+            details: 'KV存储中的GitHub配置不完整'
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
         // 解析form数据
+        console.log('正在解析表单数据');
         const formData = await request.formData();
         const uploadId = formData.get('upload_id');
         const chunkIndex = parseInt(formData.get('chunk_index'), 10);
         const totalChunks = parseInt(formData.get('total_chunks'), 10);
         const chunkFile = formData.get('chunk');
         
-        console.log(`处理分片上传: 上传ID=${uploadId}, 分片=${chunkIndex + 1}/${totalChunks}`);
+        console.log(`处理分片上传: 上传ID=${uploadId}, 分片=${chunkIndex + 1}/${totalChunks}, 文件大小=${chunkFile ? chunkFile.size : 'N/A'}`);
         
         if (!uploadId || Number.isNaN(chunkIndex) || !chunkFile) {
+          console.error('分片上传缺少参数:', {
+            hasUploadId: !!uploadId,
+            chunkIndex,
+            hasChunkFile: !!chunkFile
+          });
           return new Response(JSON.stringify({ 
             success: false, 
             error: '缺少必要参数'
@@ -721,11 +892,31 @@ export async function onRequest(context) {
         }
         
         // 获取上传记录
+        console.log('查询上传记录:', uploadId);
+        try {
+          // 确认uploads表存在
+          await env.DB.prepare('SELECT 1 FROM sqlite_master WHERE type="table" AND name="uploads" LIMIT 1').first();
+        } catch (tableError) {
+          console.error('检查uploads表失败:', tableError);
+          return new Response(JSON.stringify({
+            success: false,
+            error: '数据库表结构问题',
+            details: 'uploads表不存在，请检查数据库初始化'
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
         const uploadRecord = await env.DB.prepare(
           'SELECT * FROM uploads WHERE id = ?'
         ).bind(uploadId).first();
         
         if (!uploadRecord) {
+          console.error('未找到上传记录:', uploadId);
           return new Response(JSON.stringify({ 
             success: false, 
             error: '无效的上传ID'
@@ -738,8 +929,15 @@ export async function onRequest(context) {
           });
         }
         
+        console.log('找到上传记录:', {
+          filename: uploadRecord.filename,
+          status: uploadRecord.status,
+          completed: `${uploadRecord.completed_chunks}/${uploadRecord.total_chunks}`
+        });
+        
         // 检查上传状态
         if (uploadRecord.status === 'completed' || uploadRecord.status === 'failed') {
+          console.log(`该上传已${uploadRecord.status === 'completed' ? '完成' : '失败'}`);
           return new Response(JSON.stringify({ 
             success: false, 
             error: `该上传已${uploadRecord.status === 'completed' ? '完成' : '失败'}`
@@ -758,123 +956,141 @@ export async function onRequest(context) {
         const chunkPath = `${chunkDir}/${chunkFilename}`;
         
         // 读取文件内容
-        const buffer = await chunkFile.arrayBuffer();
-        const base64Data = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-        
-        // 获取GitHub配置
-        const accessToken = await env.KV.get('gh_token');
-        const owner = await env.KV.get('gh_owner');
-        const repo = await env.KV.get('gh_repo');
-        
-        if (!accessToken || !owner || !repo) {
-          return new Response(JSON.stringify({ 
-            success: false, 
-            error: 'GitHub存储配置错误'
-          }), {
-            status: 500,
-            headers: {
-              'Content-Type': 'application/json',
-              ...corsHeaders
-            }
-          });
-        }
-        
-        // 上传分片到GitHub
-        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${chunkPath}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `token ${accessToken}`,
-            'Content-Type': 'application/json',
-            'User-Agent': 'CloudFlare-Worker'
-          },
-          body: JSON.stringify({
-            message: `Upload chunk ${chunkIndex + 1} of ${totalChunks} for ${uploadRecord.filename}`,
-            content: base64Data
-          })
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('GitHub API错误:', errorData);
+        console.log(`正在处理分片数据，路径: ${chunkPath}`);
+        try {
+          const buffer = await chunkFile.arrayBuffer();
+          const base64Data = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+          console.log(`分片 ${chunkIndex + 1}/${totalChunks} 编码完成，大小: ${buffer.byteLength} 字节`);
           
-          // 更新上传状态为失败
+          // 上传分片到GitHub
+          console.log(`正在上传分片到GitHub: ${chunkPath}`);
+          const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${chunkPath}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `token ${accessToken}`,
+              'Content-Type': 'application/json',
+              'User-Agent': 'CloudFlare-Worker'
+            },
+            body: JSON.stringify({
+              message: `Upload chunk ${chunkIndex + 1} of ${totalChunks} for ${uploadRecord.filename}`,
+              content: base64Data
+            })
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch (e) {
+              errorData = { message: errorText };
+            }
+            
+            console.error('GitHub API错误:', {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorData
+            });
+            
+            // 更新上传状态为失败
+            await env.DB.prepare(
+              'UPDATE uploads SET status = ?, error = ? WHERE id = ?'
+            ).bind(
+              'failed',
+              `分片${chunkIndex}上传失败: ${errorData.message || '未知错误'} (状态码: ${response.status})`,
+              uploadId
+            ).run();
+            
+            return new Response(JSON.stringify({ 
+              success: false, 
+              error: '分片上传到GitHub失败',
+              details: errorData.message || '未知错误',
+              status: response.status,
+              statusText: response.statusText
+            }), {
+              status: 500,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+          console.log(`分片 ${chunkIndex + 1}/${totalChunks} 上传GitHub成功`);
+          
+          // 更新已上传的分片数量
           await env.DB.prepare(
-            'UPDATE uploads SET status = ?, error = ? WHERE id = ?'
-          ).bind(
-            'failed',
-            `分片${chunkIndex}上传失败: ${errorData.message || '未知错误'}`,
-            uploadId
-          ).run();
+            'UPDATE uploads SET completed_chunks = completed_chunks + 1 WHERE id = ?'
+          ).bind(uploadId).run();
           
-          return new Response(JSON.stringify({ 
-            success: false, 
-            error: '分片上传到GitHub失败',
-            details: errorData.message || '未知错误'
-          }), {
-            status: 500,
-            headers: {
-              'Content-Type': 'application/json',
-              ...corsHeaders
-            }
-          });
-        }
-        
-        // 更新已上传的分片数量
-        await env.DB.prepare(
-          'UPDATE uploads SET completed_chunks = completed_chunks + 1 WHERE id = ?'
-        ).bind(uploadId).run();
-        
-        // 重新获取更新后的记录
-        const updatedRecord = await env.DB.prepare(
-          'SELECT * FROM uploads WHERE id = ?'
-        ).bind(uploadId).first();
-        
-        // 检查是否所有分片都已上传
-        if (updatedRecord.completed_chunks >= updatedRecord.total_chunks) {
-          console.log(`所有分片已上传完成: ${updatedRecord.completed_chunks}/${updatedRecord.total_chunks}`);
+          console.log(`更新uploads表记录，增加已完成分片计数`);
           
-          // 异步触发分片合并操作
-          // 在实际生产环境中，你可能需要使用队列或其他方式来处理这个耗时操作
-          handleChunkMerging(env, uploadId).catch(error => {
-            console.error('分片合并失败:', error);
-          });
+          // 重新获取更新后的记录
+          const updatedRecord = await env.DB.prepare(
+            'SELECT * FROM uploads WHERE id = ?'
+          ).bind(uploadId).first();
           
+          // 检查是否所有分片都已上传
+          if (updatedRecord.completed_chunks >= updatedRecord.total_chunks) {
+            console.log(`所有分片已上传完成: ${updatedRecord.completed_chunks}/${updatedRecord.total_chunks}`);
+            
+            // 异步触发分片合并操作
+            // 在实际生产环境中，你可能需要使用队列或其他方式来处理这个耗时操作
+            handleChunkMerging(env, uploadId).catch(error => {
+              console.error('分片合并失败:', error);
+            });
+            
+            return new Response(JSON.stringify({
+              success: true,
+              status: 'all_chunks_uploaded',
+              message: '所有分片已上传，正在合并文件',
+              upload_id: uploadId,
+              chunks_completed: updatedRecord.completed_chunks,
+              total_chunks: updatedRecord.total_chunks
+            }), {
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+          // 返回上传成功和进度信息
+          console.log(`分片 ${chunkIndex + 1}/${totalChunks} 处理完成`);
           return new Response(JSON.stringify({
             success: true,
-            status: 'all_chunks_uploaded',
-            message: '所有分片已上传，正在合并文件',
             upload_id: uploadId,
+            chunk_index: chunkIndex,
             chunks_completed: updatedRecord.completed_chunks,
-            total_chunks: updatedRecord.total_chunks
+            total_chunks: updatedRecord.total_chunks,
+            progress: Math.round((updatedRecord.completed_chunks / updatedRecord.total_chunks) * 100)
           }), {
             headers: {
               'Content-Type': 'application/json',
               ...corsHeaders
             }
           });
+        } catch (processError) {
+          console.error('处理分片数据错误:', processError);
+          return new Response(JSON.stringify({
+            success: false,
+            error: '处理分片数据错误',
+            details: processError.message
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
         }
-        
-        // 返回上传成功和进度信息
-        return new Response(JSON.stringify({
-          success: true,
-          upload_id: uploadId,
-          chunk_index: chunkIndex,
-          chunks_completed: updatedRecord.completed_chunks,
-          total_chunks: updatedRecord.total_chunks,
-          progress: Math.round((updatedRecord.completed_chunks / updatedRecord.total_chunks) * 100)
-        }), {
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        });
-        
       } catch (error) {
-        console.error('分片上传错误:', error);
+        console.error('分片上传错误:', error.stack || error);
         return new Response(JSON.stringify({
           success: false,
           error: '分片上传失败',
-          details: error.message
+          details: error.message,
+          stack: isDebugMode ? error.stack : undefined
         }), {
           status: 500,
           headers: {
