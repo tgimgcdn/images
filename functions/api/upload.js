@@ -40,10 +40,10 @@ export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   
-  // 重要：直接使用整个URL路径，不要截取
-  // 判断子路径，后半部分都在url.pathname中
-  const fullPath = url.pathname;
-  console.log('处理请求路径:', fullPath);
+  // 使用查询参数确定操作类型，而不是路径
+  const action = url.searchParams.get('action');
+  
+  console.log('处理请求路径:', url.pathname, '操作:', action);
   
   // 每次请求时清理过期会话
   cleanupExpiredSessions();
@@ -74,7 +74,7 @@ export async function onRequest(context) {
   }
   
   // 创建上传会话
-  if (fullPath.endsWith('/api/upload/create-session') && request.method === 'POST') {
+  if (action === 'create-session' && request.method === 'POST') {
     try {
       const { fileName, fileSize, totalChunks, mimeType } = await request.json();
       
@@ -152,7 +152,7 @@ export async function onRequest(context) {
   }
   
   // 上传分块
-  if (fullPath.endsWith('/api/upload/chunk') && request.method === 'POST') {
+  if (action === 'chunk' && request.method === 'POST') {
     try {
       const formData = await request.formData();
       const chunk = formData.get('chunk');
@@ -230,7 +230,7 @@ export async function onRequest(context) {
   }
   
   // 完成上传
-  if (fullPath.endsWith('/api/upload/complete') && request.method === 'POST') {
+  if (action === 'complete' && request.method === 'POST') {
     try {
       const { sessionId, fileName, mimeType } = await request.json();
       
@@ -373,7 +373,7 @@ export async function onRequest(context) {
   }
   
   // 取消上传
-  if (fullPath.endsWith('/api/upload/cancel') && request.method === 'POST') {
+  if (action === 'cancel' && request.method === 'POST') {
     try {
       const { sessionId } = await request.json();
       
@@ -420,35 +420,19 @@ export async function onRequest(context) {
     }
   }
   
-  // 处理基本的 /api/upload 请求，返回405
-  if (fullPath.endsWith('/api/upload')) {
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Method not allowed, please use specific endpoints',
-      availableEndpoints: [
-        '/api/upload/create-session',
-        '/api/upload/chunk',
-        '/api/upload/complete',
-        '/api/upload/cancel'
-      ]
-    }), {
-      status: 405,
-      headers: {
-        'Content-Type': 'application/json',
-        'Allow': 'OPTIONS',
-        ...corsHeaders
-      }
-    });
-  }
-  
-  // 如果没有匹配的路由，返回404
+  // 如果没有匹配的操作，返回API使用说明
   return new Response(JSON.stringify({
     success: false,
     error: '无效的API请求',
-    path: fullPath,
-    method: request.method
+    usage: '请使用查询参数指定操作，例如: /api/upload?action=create-session',
+    availableActions: [
+      'create-session',
+      'chunk',
+      'complete',
+      'cancel'
+    ]
   }), {
-    status: 404,
+    status: 400,
     headers: {
       'Content-Type': 'application/json',
       ...corsHeaders
