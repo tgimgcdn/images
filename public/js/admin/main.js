@@ -1271,14 +1271,11 @@ function formatDate(timestamp) {
         return '未知日期';
     }
     
-    // 创建日期对象 - 数据库返回的是UTC时间，需要转换为北京时间
+    // 创建日期对象 - 数据库返回的已经是北京时间，不需要再转换
     const date = new Date(timestamp);
     
-    // 调整为北京时间（UTC+8）
-    const beijingTime = new Date(date.getTime() + (8 * 60 * 60 * 1000));
-    
-    // 使用toLocaleString格式化日期，采用中文格式
-    return beijingTime.toLocaleString('zh-CN', {
+    // 直接使用toLocaleString格式化日期，采用中文格式
+    return date.toLocaleString('zh-CN', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
