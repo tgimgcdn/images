@@ -1,59 +1,15 @@
 {
   "version": 1,
-  "include": ["/*"],
-  "exclude": ["/images/*"],
+  "include": [
+    "/*"
+  ],
+  "exclude": [
+    "/images/*"
+  ],
   "routes": [
     {
-      "pattern": "/api/upload/create-session",
+      "pattern": "/api/upload*",
       "script": "functions/api/upload.js"
-    },
-    {
-      "pattern": "/api/upload/chunk",
-      "script": "functions/api/upload.js"
-    },
-    {
-      "pattern": "/api/upload/complete",
-      "script": "functions/api/upload.js"
-    },
-    {
-      "pattern": "/api/upload/cancel",
-      "script": "functions/api/upload.js"
-    },
-    {
-      "pattern": "/api/upload",
-      "script": "functions/api/upload.js"
-    },
-    {
-      "pattern": "/api/admin/login",
-      "script": "functions/api/[[path]].js"
-    },
-    {
-      "pattern": "/api/admin/logout",
-      "script": "functions/api/[[path]].js"
-    },
-    {
-      "pattern": "/api/admin/change-password",
-      "script": "functions/api/[[path]].js"
-    },
-    {
-      "pattern": "/api/admin/recaptcha-config",
-      "script": "functions/api/[[path]].js"
-    },
-    {
-      "pattern": "/api/settings/guest-upload",
-      "script": "functions/api/[[path]].js"
-    },
-    {
-      "pattern": "/api/settings",
-      "script": "functions/api/[[path]].js"
-    },
-    {
-      "pattern": "/api/stats/summary",
-      "script": "functions/api/[[path]].js"
-    },
-    {
-      "pattern": "/api/health",
-      "script": "functions/api/[[path]].js"
     },
     {
       "pattern": "/api/*",
