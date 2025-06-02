@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 初始化上传模态框
             console.log('初始化上传模态框');
-            initUploadModal();
+    initUploadModal();
             
             // 添加图片复选框变化事件委托
             document.addEventListener('change', function(e) {
@@ -516,7 +516,7 @@ async function initDashboard() {
             document.getElementById('todayUploads').textContent = '-';
             document.getElementById('totalSize').textContent = '-';
         } else {
-            // 更新统计卡片
+        // 更新统计卡片
             document.getElementById('totalImages').textContent = stats.total_images || '0';
             document.getElementById('todayUploads').textContent = stats.today_uploads || '0';
             
@@ -1053,7 +1053,9 @@ async function loadImages(page = 1, search = '') {
         if (data.images && data.images.length > 0) {
             // 显示图片
             data.images.forEach(image => {
-                // 修复字段名称不匹配的问题
+                // 修复字段名称不匹配的问题并添加调试信息
+                console.log('服务器返回的图片数据:', image);
+                
                 const normalizedImage = {
                     id: image.id,
                     filename: image.name || image.filename,
@@ -1066,6 +1068,8 @@ async function loadImages(page = 1, search = '') {
                     sha: image.sha || ''
                 };
                 
+                console.log('规范化后的图片数据:', normalizedImage);
+                
                 const card = createImageCard(normalizedImage);
                 imageGrid.appendChild(card);
             });
@@ -1075,7 +1079,7 @@ async function loadImages(page = 1, search = '') {
             
             // 设置分页
             setupPagination(data.total, data.page, data.total_pages || Math.ceil(data.total / 36));
-                } else {
+        } else {
             // 没有图片时显示提示
             if (search) {
                 imageGrid.innerHTML = `<div class="no-images">没有找到匹配"${search}"的图片</div>`;
@@ -1107,11 +1111,18 @@ function createImageCard(image) {
     const formattedSize = formatFileSize(image.size, 2);
     
     // 为缩略图添加哈希参数，防止缓存问题
-    const thumbnailUrl = (image.thumbnail_url || image.url) + `?hash=${image.sha || Date.now()}`;
+    // 确保使用完整URL并添加强制缓存破坏参数
+    const thumbnailUrl = `${image.url}?hash=${image.sha || Date.now()}&t=${Date.now()}`;
+    console.log('生成缩略图URL:', thumbnailUrl);
     
     card.innerHTML = `
         <div class="image-preview">
             <img src="${thumbnailUrl}" alt="${image.filename}" loading="lazy">
+            <div class="image-error-overlay" style="display:none">
+                <button class="reload-image-btn" title="重新加载图片">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
         </div>
         <div class="image-info">
             <div class="filename-container">
@@ -1143,6 +1154,32 @@ function createImageCard(image) {
             // 使用浏览器原生的title属性来显示完整文件名
             // 而不是创建额外的tooltip元素
         }
+    });
+    
+    // 处理图片加载错误
+    const imgElement = card.querySelector('.image-preview img');
+    const errorOverlay = card.querySelector('.image-error-overlay');
+    
+    // 图片加载失败时显示重新加载按钮
+    imgElement.addEventListener('error', function() {
+        console.error('图片加载失败:', thumbnailUrl);
+        errorOverlay.style.display = 'flex';
+        imgElement.style.display = 'none';
+    });
+    
+    // 重新加载按钮点击事件
+    const reloadBtn = card.querySelector('.reload-image-btn');
+    reloadBtn.addEventListener('click', function(e) {
+        e.stopPropagation(); // 阻止事件冒泡，避免触发预览
+        
+        // 生成新的缓存破坏URL
+        const newUrl = `${image.url}?hash=${image.sha}&t=${Date.now()}&nocache=true`;
+        console.log('重新加载图片:', newUrl);
+        
+        // 重置图片
+        imgElement.style.display = '';
+        errorOverlay.style.display = 'none';
+        imgElement.src = newUrl;
     });
     
     // 添加点击预览大图功能
@@ -1691,9 +1728,9 @@ async function uploadSelectedFiles(files) {
                 const percent = Math.min(100, Math.round(overallProgress * 100));
                 
                 // 更新进度条
-                progressBar.style.width = percent + '%';
-                progressText.textContent = percent + '%';
-                
+                    progressBar.style.width = percent + '%';
+                    progressText.textContent = percent + '%';
+                    
                 // 计算上传速度
                 const elapsedSeconds = (Date.now() - startTime) / 1000;
                 if (elapsedSeconds > 0) {
@@ -1711,7 +1748,7 @@ async function uploadSelectedFiles(files) {
                 loadImages(1);
                 // 更新控制面板统计
                 updateDashboardStats();
-            } else {
+                } else {
                 showNotification(`上传失败: ${result.error || '未知错误'}`, 'error');
             }
         } catch (error) {
@@ -1767,7 +1804,7 @@ function uploadFileWithProgress(file, onProgress) {
                 try {
                     const response = JSON.parse(xhr.responseText);
                     resolve(response);
-                } catch (error) {
+    } catch (error) {
                     reject(new Error('解析响应失败: ' + error.message));
                 }
             } else {
