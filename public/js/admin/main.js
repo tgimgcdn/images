@@ -15,6 +15,10 @@ let imageGrid; // 定义全局变量，用于引用图片网格
 document.addEventListener('DOMContentLoaded', () => {
     try {
         console.log('DOM加载完成，开始初始化');
+        
+        // 移动端设备优化
+        optimizeForMobileDevices();
+        
         // 检查是否启用调试模式
         isDebugMode = localStorage.getItem('debugMode') === 'true' || new URLSearchParams(window.location.search).has('debug');
         if (isDebugMode) {
@@ -1876,4 +1880,60 @@ function uploadFileWithProgress(file, onProgress) {
         xhr.withCredentials = true; // 包含凭据
         xhr.send(formData);
     });
+}
+
+// 新增函数，用于在移动端设备上优化初始加载
+function optimizeForMobileDevices() {
+    // 检测是否为移动设备
+    const isMobile = window.innerWidth <= 768;
+    
+    if (isMobile) {
+        console.log('检测到移动设备，应用移动端优化设置');
+        
+        // 1. 设置DOM元素适应小屏幕
+        document.body.classList.add('mobile-view');
+        
+        // 2. 加载完后略微延迟滚动到顶部，确保界面显示正确
+        setTimeout(() => {
+            window.scrollTo(0, 0);
+        }, 100);
+        
+        // 3. 为导航菜单添加触摸友好的间距
+        const navItems = document.querySelectorAll('.nav-menu li a');
+        navItems.forEach(item => {
+            item.style.padding = '14px 16px';
+        });
+        
+        // 4. 监听屏幕方向变化，优化横屏模式
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                // 横屏模式下调整布局
+                if (window.orientation === 90 || window.orientation === -90) {
+                    console.log('横屏模式，调整布局');
+                    document.body.classList.add('landscape');
+                    // 横屏模式使用较小的初始缩放
+                    const metaViewport = document.querySelector('meta[name="viewport"]');
+                    if (metaViewport) {
+                        metaViewport.setAttribute('content', 'width=device-width, initial-scale=0.7, maximum-scale=1.0, user-scalable=yes');
+                    }
+                } else {
+                    console.log('竖屏模式，恢复布局');
+                    document.body.classList.remove('landscape');
+                    // 竖屏模式恢复较大的初始缩放
+                    const metaViewport = document.querySelector('meta[name="viewport"]');
+                    if (metaViewport) {
+                        metaViewport.setAttribute('content', 'width=device-width, initial-scale=0.8, maximum-scale=1.0, user-scalable=yes');
+                    }
+                }
+            }, 300); // 等待一段时间以确保方向改变后的DOM更新
+        });
+        
+        // 5. 减少某些动画效果以提高性能
+        document.querySelectorAll('.image-card').forEach(card => {
+            card.style.transition = 'transform 0.2s ease';
+        });
+        
+        // 6. 优化触摸响应
+        document.addEventListener('touchstart', function(){}, {passive: true});
+    }
 } 
