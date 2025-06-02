@@ -11,8 +11,8 @@ const sessionChunks = new Map();
 // 每个会话的过期时间 - 10分钟后自动清理
 const sessionExpiry = new Map();
 
-// 自动清理会话的时间间隔（毫秒）
-const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5分钟
+// 过期时间设定（毫秒）
+const SESSION_EXPIRY_TIME = 10 * 60 * 1000; // 10分钟
 
 // CORS头
 const corsHeaders = {
@@ -21,8 +21,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-// 定期清理过期的会话
-setInterval(() => {
+// 清理过期会话的函数
+function cleanupExpiredSessions() {
   const now = Date.now();
   
   for (const [sessionId, expiry] of sessionExpiry.entries()) {
@@ -34,12 +34,15 @@ setInterval(() => {
       console.log(`已清理过期会话: ${sessionId}`);
     }
   }
-}, CLEANUP_INTERVAL);
+}
 
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   const path = url.pathname.replace('/api/upload', '').replace(/^\/+|\/+$/g, '');
+  
+  // 每次请求时清理过期会话
+  cleanupExpiredSessions();
   
   // 处理OPTIONS请求
   if (request.method === 'OPTIONS') {
@@ -116,7 +119,7 @@ export async function onRequest(context) {
       sessionChunks.set(sessionId, new Map());
       
       // 设置过期时间 - 10分钟后
-      sessionExpiry.set(sessionId, Date.now() + 10 * 60 * 1000);
+      sessionExpiry.set(sessionId, Date.now() + SESSION_EXPIRY_TIME);
       
       return new Response(JSON.stringify({
         success: true,
@@ -193,7 +196,7 @@ export async function onRequest(context) {
       session.uploadedChunks++;
       
       // 刷新会话过期时间
-      sessionExpiry.set(sessionId, Date.now() + 10 * 60 * 1000);
+      sessionExpiry.set(sessionId, Date.now() + SESSION_EXPIRY_TIME);
       
       return new Response(JSON.stringify({
         success: true,
