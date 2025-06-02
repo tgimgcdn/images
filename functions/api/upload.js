@@ -183,15 +183,14 @@ export async function onRequest(context) {
         const beijingTimeISO = beijingTime.toISOString();
         
         await env.DB.prepare(`
-          INSERT INTO images (filename, size, mime_type, github_path, sha, upload_time)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO images (filename, size, mime_type, github_path, sha)
+          VALUES (?, ?, ?, ?, ?)
         `).bind(
           fileName,
           file.size,
           file.type,
           filePath,
-          response.data.content.sha,
-          beijingTimeISO
+          response.data.content.sha
         ).run();
         
         console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeISO}`);
@@ -507,15 +506,14 @@ export async function onRequest(context) {
         const beijingTimeISO = beijingTime.toISOString();
         
         await env.DB.prepare(`
-          INSERT INTO images (filename, size, mime_type, github_path, sha, upload_time)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO images (filename, size, mime_type, github_path, sha)
+          VALUES (?, ?, ?, ?, ?)
         `).bind(
           uploadFileName,
           session.fileSize,
           session.mimeType,
           filePath,
-          response.data.content.sha,
-          beijingTimeISO
+          response.data.content.sha
         ).run();
         
         console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeISO}`);
