@@ -33,9 +33,40 @@ async function handleChunkMerging(env, uploadId) {
     ).bind('merging', uploadId).run();
     
     // 获取GitHub配置
-    const accessToken = await env.KV.get('gh_token');
-    const owner = await env.KV.get('gh_owner');
-    const repo = await env.KV.get('gh_repo');
+    let accessToken = null;
+    let owner = null;
+    let repo = null;
+    
+    try {
+      // 从settings表获取GitHub配置
+      const ghTokenSetting = await env.DB.prepare(
+        'SELECT value FROM settings WHERE key = ?'
+      ).bind('gh_token').first();
+      
+      const ghOwnerSetting = await env.DB.prepare(
+        'SELECT value FROM settings WHERE key = ?'
+      ).bind('gh_owner').first();
+      
+      const ghRepoSetting = await env.DB.prepare(
+        'SELECT value FROM settings WHERE key = ?'
+      ).bind('gh_repo').first();
+      
+      accessToken = ghTokenSetting?.value;
+      owner = ghOwnerSetting?.value;
+      repo = ghRepoSetting?.value;
+      
+      // 回退到环境变量（如果数据库没有保存）
+      accessToken = accessToken || env.GITHUB_TOKEN;
+      owner = owner || env.GITHUB_OWNER;
+      repo = repo || env.GITHUB_REPO;
+      
+    } catch (dbError) {
+      console.error('从数据库获取GitHub配置失败:', dbError);
+      // 回退到环境变量
+      accessToken = env.GITHUB_TOKEN;
+      owner = env.GITHUB_OWNER;
+      repo = env.GITHUB_REPO;
+    }
     
     if (!accessToken || !owner || !repo) {
       throw new Error('GitHub配置不完整');
@@ -517,37 +548,53 @@ export async function onRequest(context) {
           });
         }
         
-        // 检查KV存储
-        if (!env.KV) {
-          console.error('KV存储对象不存在');
-          return new Response(JSON.stringify({ 
-            error: '服务器配置错误: KV存储连接失败',
-            details: 'KV存储环境变量未正确配置'
-          }), {
-            status: 500,
-            headers: {
-              'Content-Type': 'application/json',
-              ...corsHeaders
-            }
+        // 检查GitHub配置
+        let accessToken = null;
+        let owner = null;
+        let repo = null;
+
+        try {
+          // 从settings表获取GitHub配置
+          const ghTokenSetting = await env.DB.prepare(
+            'SELECT value FROM settings WHERE key = ?'
+          ).bind('gh_token').first();
+          
+          const ghOwnerSetting = await env.DB.prepare(
+            'SELECT value FROM settings WHERE key = ?'
+          ).bind('gh_owner').first();
+          
+          const ghRepoSetting = await env.DB.prepare(
+            'SELECT value FROM settings WHERE key = ?'
+          ).bind('gh_repo').first();
+          
+          accessToken = ghTokenSetting?.value;
+          owner = ghOwnerSetting?.value;
+          repo = ghRepoSetting?.value;
+          
+          // 回退到环境变量（如果数据库没有保存）
+          accessToken = accessToken || env.GITHUB_TOKEN;
+          owner = owner || env.GITHUB_OWNER;
+          repo = repo || env.GITHUB_REPO;
+          
+          console.log('GitHub配置检查:', {
+            hasToken: !!accessToken,
+            hasOwner: !!owner,
+            hasRepo: !!repo
           });
+          
+        } catch (dbError) {
+          console.error('从数据库获取GitHub配置失败:', dbError);
+          // 回退到环境变量
+          accessToken = env.GITHUB_TOKEN;
+          owner = env.GITHUB_OWNER;
+          repo = env.GITHUB_REPO;
         }
-        
-        // 验证GitHub配置
-        const accessToken = await env.KV.get('gh_token');
-        const owner = await env.KV.get('gh_owner');
-        const repo = await env.KV.get('gh_repo');
-        
-        console.log('GitHub配置检查:', {
-          hasToken: !!accessToken,
-          hasOwner: !!owner,
-          hasRepo: !!repo
-        });
         
         if (!accessToken || !owner || !repo) {
           console.error('GitHub配置不完整');
           return new Response(JSON.stringify({ 
             error: 'GitHub配置不完整',
-            details: '请检查KV存储中的gh_token, gh_owner和gh_repo键值' 
+            details: '请在数据库的settings表中设置gh_token, gh_owner和gh_repo键值' 
           }), {
             status: 500,
             headers: {
@@ -662,10 +709,10 @@ export async function onRequest(context) {
         }
 
         // 检查文件大小
-        const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
         if (size > MAX_FILE_SIZE) {
           console.log('文件大小超过限制:', formatSize(size));
-          return new Response(JSON.stringify({ error: '文件大小超过限制 (最大 25MB)' }), {
+          return new Response(JSON.stringify({ error: '文件大小超过限制 (最大 50MB)' }), {
             status: 400,
             headers: {
               'Content-Type': 'application/json',
@@ -793,7 +840,7 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({
           success: true,
           upload_id: uploadId,
-          chunk_size: 5 * 1024 * 1024 // 5MB 分片大小，前端参考值
+          chunk_size: 2 * 1024 * 1024 // 2MB 分片大小，降低单次内存使用
         }), {
           headers: {
             'Content-Type': 'application/json',
@@ -833,16 +880,47 @@ export async function onRequest(context) {
       try {
         console.log('开始处理分片上传请求');
         
-        // 验证KV配置
-        const accessToken = await env.KV.get('gh_token');
-        const owner = await env.KV.get('gh_owner');
-        const repo = await env.KV.get('gh_repo');
+        // 从数据库获取GitHub配置
+        let accessToken = null;
+        let owner = null;
+        let repo = null;
         
-        console.log('GitHub配置检查:', {
-          hasToken: !!accessToken,
-          hasOwner: !!owner,
-          hasRepo: !!repo
-        });
+        try {
+          // 从settings表获取GitHub配置
+          const ghTokenSetting = await env.DB.prepare(
+            'SELECT value FROM settings WHERE key = ?'
+          ).bind('gh_token').first();
+          
+          const ghOwnerSetting = await env.DB.prepare(
+            'SELECT value FROM settings WHERE key = ?'
+          ).bind('gh_owner').first();
+          
+          const ghRepoSetting = await env.DB.prepare(
+            'SELECT value FROM settings WHERE key = ?'
+          ).bind('gh_repo').first();
+          
+          accessToken = ghTokenSetting?.value;
+          owner = ghOwnerSetting?.value;
+          repo = ghRepoSetting?.value;
+          
+          // 回退到环境变量（如果数据库没有保存）
+          accessToken = accessToken || env.GITHUB_TOKEN;
+          owner = owner || env.GITHUB_OWNER;
+          repo = repo || env.GITHUB_REPO;
+          
+          console.log('GitHub配置检查:', {
+            hasToken: !!accessToken,
+            hasOwner: !!owner,
+            hasRepo: !!repo
+          });
+          
+        } catch (dbError) {
+          console.error('从数据库获取GitHub配置失败:', dbError);
+          // 回退到环境变量
+          accessToken = env.GITHUB_TOKEN;
+          owner = env.GITHUB_OWNER;
+          repo = env.GITHUB_REPO;
+        }
         
         if (!accessToken || !owner || !repo) {
           console.error('GitHub配置不完整:', {
@@ -853,7 +931,7 @@ export async function onRequest(context) {
           return new Response(JSON.stringify({ 
             success: false, 
             error: 'GitHub存储配置错误',
-            details: 'KV存储中的GitHub配置不完整'
+            details: '数据库中的GitHub配置不完整'
           }), {
             status: 500,
             headers: {
@@ -964,7 +1042,7 @@ export async function onRequest(context) {
           // 这部分使用了更高效的base64编码方法，避免了大量CPU消耗
           let binary = '';
           const bytes = new Uint8Array(buffer);
-          const chunkSize = 1024 * 1024; // 每次处理1MB数据
+          const chunkSize = 512 * 1024; // 使用更小的内存块大小，每次处理512KB数据
           
           for (let i = 0; i < bytes.length; i += chunkSize) {
             const slice = bytes.slice(i, Math.min(i + chunkSize, bytes.length));
@@ -1166,8 +1244,18 @@ export async function onRequest(context) {
         // 如果上传完成，返回文件URL
         let fileUrl = null;
         if (uploadRecord.status === 'completed') {
-          // 从filepath构建URL
-          const baseUrl = await env.KV.get('base_url') || new URL(request.url).origin;
+          // 获取base_url设置从数据库
+          let baseUrlSetting;
+          try {
+            baseUrlSetting = await env.DB.prepare(
+              'SELECT value FROM settings WHERE key = ?'
+            ).bind('base_url').first();
+          } catch (err) {
+            console.error('获取base_url设置失败:', err);
+          }
+          
+          // 使用设置的baseUrl或回退到请求URL的origin
+          const baseUrl = (baseUrlSetting && baseUrlSetting.value) || new URL(request.url).origin;
           fileUrl = `${baseUrl}/${uploadRecord.filepath.replace('public/', '')}`;
         }
         
