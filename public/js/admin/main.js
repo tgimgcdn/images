@@ -1062,7 +1062,8 @@ async function loadImages(page = 1, search = '') {
                     size: image.size,
                     type: image.type,
                     views: image.views || 0,
-                    created_at: image.upload_time || image.created_at
+                    created_at: image.upload_time || image.created_at,
+                    sha: image.sha || ''
                 };
                 
                 const card = createImageCard(normalizedImage);
@@ -1105,9 +1106,12 @@ function createImageCard(image) {
     // 格式化文件大小，保留2位小数
     const formattedSize = formatFileSize(image.size, 2);
     
+    // 为缩略图添加哈希参数，防止缓存问题
+    const thumbnailUrl = (image.thumbnail_url || image.url) + `?hash=${image.sha || Date.now()}`;
+    
     card.innerHTML = `
         <div class="image-preview">
-            <img src="${image.thumbnail_url || image.url}" alt="${image.filename}" loading="lazy">
+            <img src="${thumbnailUrl}" alt="${image.filename}" loading="lazy">
         </div>
         <div class="image-info">
             <div class="filename-container">
