@@ -274,22 +274,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 显示上传结果
     function showResult(results) {
+        console.log('显示结果:', results);
+        
+        if (!results || results.length === 0) {
+            return;
+        }
+        
+        // 显示结果容器
         resultContainer.style.display = 'block';
         
-        // 设置各种格式的链接
+        // 将链接值填充到表单
         const linkInputs = document.querySelectorAll('.link-input');
         
-        // 直接链接
-        linkInputs[0].value = results.map(r => r.url).join('\n');
-        
-        // Markdown
-        linkInputs[1].value = results.map(r => r.markdown).join('\n');
-        
-        // HTML
-        linkInputs[2].value = results.map(r => r.html).join('\n');
-        
-        // BBCode
-        linkInputs[3].value = results.map(r => r.bbcode).join('\n');
+        // 如果有多个结果，为每种格式合并多个链接，每行一个
+        if (linkInputs && linkInputs.length > 0) {
+            // URL
+            linkInputs[0].value = results.map(r => r.url).join('\n');
+            
+            // Markdown - API已返回编码后的markdown链接
+            linkInputs[1].value = results.map(r => r.markdown).join('\n');
+            
+            // HTML
+            linkInputs[2].value = results.map(r => r.html).join('\n');
+            
+            // BBCode
+            linkInputs[3].value = results.map(r => r.bbcode).join('\n');
+        }
         
         // 添加复制功能
         document.querySelectorAll('.copy-btn').forEach(btn => {
