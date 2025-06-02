@@ -1,6 +1,207 @@
 import { Octokit } from 'octokit';
 import bcrypt from 'bcryptjs';
 
+// 分片合并处理函数
+async function handleChunkMerging(env, uploadId) {
+  console.log(`开始合并分片, 上传ID: ${uploadId}`);
+  
+  try {
+    // 获取上传记录
+    const uploadRecord = await env.DB.prepare(
+      'SELECT * FROM uploads WHERE id = ?'
+    ).bind(uploadId).first();
+    
+    if (!uploadRecord) {
+      console.error(`找不到上传记录: ${uploadId}`);
+      return;
+    }
+    
+    console.log(`合并上传 ${uploadRecord.filename}, 总分片数: ${uploadRecord.total_chunks}`);
+    
+    // 更新状态为合并中
+    await env.DB.prepare(
+      'UPDATE uploads SET status = ? WHERE id = ?'
+    ).bind('merging', uploadId).run();
+    
+    // 获取GitHub配置
+    const accessToken = await env.KV.get('gh_token');
+    const owner = await env.KV.get('gh_owner');
+    const repo = await env.KV.get('gh_repo');
+    
+    if (!accessToken || !owner || !repo) {
+      throw new Error('GitHub配置不完整');
+    }
+    
+    // 创建临时分片目录路径
+    const chunkDir = `chunks/${uploadId}`;
+    
+    // 存储所有分片的SHA，用于稍后删除
+    const chunkSHAs = [];
+    let mergedContent = '';
+    
+    // 获取并合并所有分片
+    for (let i = 0; i < uploadRecord.total_chunks; i++) {
+      const chunkPath = `${chunkDir}/${i}.chunk`;
+      console.log(`获取分片 ${i + 1}/${uploadRecord.total_chunks}: ${chunkPath}`);
+      
+      // 从GitHub获取分片内容
+      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${chunkPath}`, {
+        headers: {
+          'Authorization': `token ${accessToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'CloudFlare-Worker'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`获取分片 ${i + 1} 失败: ${errorData.message || '未知错误'}`);
+      }
+      
+      const chunkData = await response.json();
+      chunkSHAs.push({ path: chunkPath, sha: chunkData.sha });
+      
+      // 解码分片内容并合并
+      const content = atob(chunkData.content);
+      mergedContent += content;
+      
+      // 每5个分片更新一次进度，避免数据库压力
+      if (i % 5 === 0 || i === uploadRecord.total_chunks - 1) {
+        await env.DB.prepare(
+          'UPDATE uploads SET status = ?, completed_chunks = ? WHERE id = ?'
+        ).bind('merging', i + 1, uploadId).run();
+      }
+    }
+    
+    console.log(`所有分片已获取, 开始上传合并后的文件: ${uploadRecord.filepath}`);
+    
+    // 将合并后的内容编码为Base64
+    const base64Content = btoa(mergedContent);
+    
+    // 检查文件是否已存在
+    let existingSha = null;
+    try {
+      const existingFileResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${uploadRecord.filepath}`, {
+        headers: {
+          'Authorization': `token ${accessToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'CloudFlare-Worker'
+        }
+      });
+      
+      if (existingFileResponse.ok) {
+        const existingFile = await existingFileResponse.json();
+        existingSha = existingFile.sha;
+        console.log(`文件已存在，将进行更新: ${uploadRecord.filepath}, SHA: ${existingSha}`);
+      }
+    } catch (error) {
+      console.log(`文件不存在，将创建新文件: ${uploadRecord.filepath}`);
+    }
+    
+    // 上传合并后的文件到最终位置
+    const fileUploadBody = {
+      message: `Upload: ${uploadRecord.filename}`,
+      content: base64Content,
+      branch: 'main' // 确保指定正确的分支
+    };
+    
+    // 如果文件已存在，添加SHA进行更新
+    if (existingSha) {
+      fileUploadBody.sha = existingSha;
+    }
+    
+    const uploadResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${uploadRecord.filepath}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'CloudFlare-Worker'
+      },
+      body: JSON.stringify(fileUploadBody)
+    });
+    
+    if (!uploadResponse.ok) {
+      const errorData = await uploadResponse.json();
+      throw new Error(`上传合并文件失败: ${errorData.message || '未知错误'}`);
+    }
+    
+    // 获取上传后的文件信息
+    const uploadedFileData = await uploadResponse.json();
+    console.log(`文件合并上传成功: ${uploadRecord.filepath}`);
+    
+    // 检查文件是否为图片，并记录到数据库
+    const isImage = uploadRecord.mime_type?.startsWith('image/');
+    
+    if (isImage) {
+      // 从filepath中提取路径和文件名
+      const pathParts = uploadRecord.filepath.split('/');
+      const filename = pathParts.pop();
+      const directory = pathParts.join('/').replace('public/', '');
+      
+      // 插入图片记录到数据库
+      await env.DB.prepare(`
+        INSERT INTO images (filename, directory, size, created_at) 
+        VALUES (?, ?, ?, datetime('now'))
+      `).bind(
+        filename,
+        directory,
+        uploadRecord.size
+      ).run();
+      
+      console.log(`图片记录已添加到数据库: ${filename}`);
+    } else {
+      console.log(`文件不是图片类型，跳过图片数据库记录`);
+    }
+    
+    // 更新上传记录为已完成
+    await env.DB.prepare(
+      'UPDATE uploads SET status = ? WHERE id = ?'
+    ).bind('completed', uploadId).run();
+    
+    // 删除临时分片文件
+    console.log('开始清理临时分片文件');
+    for (const chunk of chunkSHAs) {
+      try {
+        await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${chunk.path}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `token ${accessToken}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'CloudFlare-Worker'
+          },
+          body: JSON.stringify({
+            message: `Remove temp chunk for ${uploadRecord.filename}`,
+            sha: chunk.sha,
+            branch: 'main'
+          })
+        });
+      } catch (error) {
+        console.error(`删除临时分片失败: ${chunk.path}`, error);
+        // 继续删除其他分片，不中断流程
+      }
+    }
+    
+    console.log(`上传和合并过程完成: ${uploadRecord.filepath}`);
+    return true;
+    
+  } catch (error) {
+    console.error('合并分片时出错:', error);
+    
+    // 更新上传记录为失败
+    try {
+      await env.DB.prepare(
+        'UPDATE uploads SET status = ?, error = ? WHERE id = ?'
+      ).bind('failed', error.message || '合并分片失败', uploadId).run();
+    } catch (dbError) {
+      console.error('更新上传状态出错:', dbError);
+    }
+    
+    throw error;
+  }
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -277,9 +478,8 @@ export async function onRequest(context) {
       }
     }
 
-    // 处理文件上传 - 优化路径匹配
-    if (path.toLowerCase() === 'upload') {
-      // 只允许 POST 方法
+    // 处理上传初始化请求 - 为分片上传创建会话
+    if (path.toLowerCase() === 'upload/init') {
       if (request.method !== 'POST') {
         return new Response(JSON.stringify({ error: 'Method not allowed' }), {
           status: 405,
@@ -323,13 +523,14 @@ export async function onRequest(context) {
           console.log('用户已登录，允许上传');
         }
 
-        console.log('开始处理文件上传');
-        const formData = await request.formData();
-        const file = formData.get('file');
+        // 解析请求数据
+        const data = await request.json();
+        const { filename, size, type, total_chunks } = data;
         
-        if (!file) {
-          console.error('未找到文件');
-          return new Response(JSON.stringify({ error: '未找到文件' }), {
+        if (!filename || !size || !total_chunks) {
+          return new Response(JSON.stringify({ 
+            error: '缺少必要参数'
+          }), {
             status: 400,
             headers: {
               'Content-Type': 'application/json',
@@ -337,12 +538,6 @@ export async function onRequest(context) {
             }
           });
         }
-
-        console.log('文件信息:', {
-          name: file.name,
-          type: file.type,
-          size: file.size
-        });
 
         // 检查文件类型
         try {
@@ -357,8 +552,8 @@ export async function onRequest(context) {
           
           console.log('允许的文件类型:', allowedTypes);
           
-          if (!allowedTypes.includes(file.type)) {
-            console.error('不支持的文件类型:', file.type);
+          if (!allowedTypes.includes(type)) {
+            console.error('不支持的文件类型:', type);
             return new Response(JSON.stringify({ 
               error: '不支持的文件类型',
               allowedTypes: allowedTypes.join(', ')
@@ -374,7 +569,7 @@ export async function onRequest(context) {
           console.error('检查文件类型时出错:', error);
           // 如果出错，使用默认的类型限制
           const defaultAllowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon'];
-          if (!defaultAllowedTypes.includes(file.type)) {
+          if (!defaultAllowedTypes.includes(type)) {
             return new Response(JSON.stringify({ 
               error: '不支持的文件类型',
               allowedTypes: defaultAllowedTypes.join(', ')
@@ -390,7 +585,7 @@ export async function onRequest(context) {
 
         // 检查文件大小
         const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
-        if (file.size > MAX_FILE_SIZE) {
+        if (size > MAX_FILE_SIZE) {
           return new Response(JSON.stringify({ error: '文件大小超过限制 (最大 25MB)' }), {
             status: 400,
             headers: {
@@ -399,49 +594,9 @@ export async function onRequest(context) {
             }
           });
         }
-
-        // 初始化 Octokit
-        console.log('初始化 Octokit');
-        const octokit = new Octokit({
-          auth: env.GITHUB_TOKEN
-        });
-
-        // 验证 GitHub 配置
-        console.log('验证 GitHub 配置');
-        try {
-          const repoInfo = await octokit.rest.repos.get({
-            owner: env.GITHUB_OWNER,
-            repo: env.GITHUB_REPO
-          });
-          console.log('仓库信息:', {
-            name: repoInfo.data.name,
-            full_name: repoInfo.data.full_name,
-            private: repoInfo.data.private,
-            permissions: repoInfo.data.permissions
-          });
-        } catch (error) {
-          console.error('GitHub 仓库验证失败:', error);
-          return new Response(JSON.stringify({ 
-            error: 'GitHub 仓库验证失败，请检查仓库名称和权限设置',
-            details: error.message
-          }), {
-            status: 500,
-            headers: {
-              'Content-Type': 'application/json',
-              ...corsHeaders
-            }
-          });
-        }
-
-        // 上传到 GitHub
-        console.log('开始上传到 GitHub');
-        const buffer = await file.arrayBuffer();
         
-        // 使用更高效的方式将 ArrayBuffer 转换为 base64
-        const base64 = btoa(
-          new Uint8Array(buffer)
-            .reduce((data, byte) => data + String.fromCharCode(byte), '')
-        );
+        // 创建上传会话ID
+        const uploadId = crypto.randomUUID();
         
         // 获取当前时间并转换为北京时间
         const now = new Date();
@@ -455,245 +610,364 @@ export async function onRequest(context) {
         const datePath = `${year}/${month}/${day}`;
         
         // 构建文件存储路径
-        const filePath = `public/images/${datePath}/${file.name}`;
+        const filePath = `public/images/${datePath}/${filename}`;
         
-        console.log('构建的文件存储路径:', filePath);
-        
-        console.log('GitHub 配置:', {
-          owner: env.GITHUB_OWNER,
-          repo: env.GITHUB_REPO,
-          path: filePath
-        });
-
+        // 确保uploads表存在
         try {
-          // 首先检查GitHub配置是否存在
-          if (!env.GITHUB_TOKEN) {
-            console.error('GitHub Token未配置');
-            return new Response(JSON.stringify({ 
-              error: 'GitHub Token未配置，请联系管理员设置系统配置',
-              details: 'Missing GitHub Token'
-            }), {
-              status: 500,
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
+          // 尝试执行一个简单的查询，如果表不存在会抛出错误
+          await env.DB.prepare('SELECT 1 FROM uploads LIMIT 1').first();
+        } catch (tableError) {
+          console.log('uploads表不存在，创建表');
+          await env.DB.exec(`
+            CREATE TABLE IF NOT EXISTS uploads (
+              id TEXT PRIMARY KEY,
+              filename TEXT NOT NULL,
+              filepath TEXT NOT NULL,
+              size INTEGER NOT NULL,
+              mime_type TEXT,
+              total_chunks INTEGER NOT NULL,
+              completed_chunks INTEGER DEFAULT 0,
+              status TEXT NOT NULL,
+              error TEXT,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+          `);
+        }
+        
+        // 在数据库中创建临时上传记录
+        await env.DB.prepare(`
+          INSERT INTO uploads (id, filename, filepath, size, mime_type, total_chunks, completed_chunks, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `).bind(
+          uploadId,
+          filename,
+          filePath,
+          size,
+          type || 'application/octet-stream',
+          total_chunks,
+          0,
+          'pending'
+        ).run();
+        
+        console.log('初始化上传:', {
+          uploadId,
+          filename,
+          filePath,
+          size,
+          total_chunks
+        });
+        
+        // 返回上传信息
+        return new Response(JSON.stringify({
+          success: true,
+          upload_id: uploadId,
+          chunk_size: 5 * 1024 * 1024 // 5MB 分片大小，前端参考值
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
           }
-          
-          if (!env.GITHUB_OWNER || !env.GITHUB_REPO) {
-            console.error('GitHub仓库信息未配置完整');
-            return new Response(JSON.stringify({ 
-              error: 'GitHub仓库配置不完整，请联系管理员设置系统配置',
-              details: 'Missing GitHub Repository Information'
-            }), {
-              status: 500,
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
+        });
+        
+      } catch (error) {
+        console.error('初始化上传错误:', error);
+        return new Response(JSON.stringify({
+          success: false,
+          error: '初始化上传失败',
+          details: error.message
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
           }
+        });
+      }
+    }
+    
+    // 处理分片上传
+    else if (path.toLowerCase() === 'upload/chunk') {
+      if (request.method !== 'POST') {
+        return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+          status: 405,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
 
-          // 尝试获取已存在的文件信息，用于检查文件是否已存在
-          try {
-            const existingFile = await octokit.rest.repos.getContent({
-              owner: env.GITHUB_OWNER,
-              repo: env.GITHUB_REPO,
-              path: filePath,
-              ref: 'main'
-            });
-            
-            if (existingFile.status === 200) {
-              console.error('文件已存在:', filePath);
-              return new Response(JSON.stringify({ 
-                error: `文件 "${file.name}" 已存在，请重命名后再上传或选择其他文件`,
-                details: 'File already exists'
-              }), {
-                status: 409, // Conflict
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...corsHeaders
-                }
-              });
+      try {
+        // 解析form数据
+        const formData = await request.formData();
+        const uploadId = formData.get('upload_id');
+        const chunkIndex = parseInt(formData.get('chunk_index'), 10);
+        const totalChunks = parseInt(formData.get('total_chunks'), 10);
+        const chunkFile = formData.get('chunk');
+        
+        console.log(`处理分片上传: 上传ID=${uploadId}, 分片=${chunkIndex + 1}/${totalChunks}`);
+        
+        if (!uploadId || Number.isNaN(chunkIndex) || !chunkFile) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: '缺少必要参数'
+          }), {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
             }
-          } catch (existingFileError) {
-            // 如果文件不存在，会抛出404错误，这是我们希望的情况
-            if (existingFileError.status !== 404) {
-              // 如果是其他错误，记录下来，但继续尝试上传
-              console.warn('检查文件是否存在时出错:', existingFileError);
-            }
-          }
-
-          const response = await octokit.rest.repos.createOrUpdateFileContents({
-            owner: env.GITHUB_OWNER,
-            repo: env.GITHUB_REPO,
-            path: filePath,
-            message: `Upload ${file.name} to ${datePath}`,
-            content: base64,
-            branch: 'main'
           });
-
-          console.log('GitHub 上传成功:', response.data);
-
-          // 保存到数据库
-          console.log('开始保存到数据库');
+        }
+        
+        // 获取上传记录
+        const uploadRecord = await env.DB.prepare(
+          'SELECT * FROM uploads WHERE id = ?'
+        ).bind(uploadId).first();
+        
+        if (!uploadRecord) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: '无效的上传ID'
+          }), {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 检查上传状态
+        if (uploadRecord.status === 'completed' || uploadRecord.status === 'failed') {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: `该上传已${uploadRecord.status === 'completed' ? '完成' : '失败'}`
+          }), {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 创建临时分片存储目录名
+        const chunkDir = `chunks/${uploadId}`;
+        const chunkFilename = `${chunkIndex}.chunk`;
+        const chunkPath = `${chunkDir}/${chunkFilename}`;
+        
+        // 读取文件内容
+        const buffer = await chunkFile.arrayBuffer();
+        const base64Data = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        
+        // 获取GitHub配置
+        const accessToken = await env.KV.get('gh_token');
+        const owner = await env.KV.get('gh_owner');
+        const repo = await env.KV.get('gh_repo');
+        
+        if (!accessToken || !owner || !repo) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'GitHub存储配置错误'
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 上传分片到GitHub
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${chunkPath}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${accessToken}`,
+            'Content-Type': 'application/json',
+            'User-Agent': 'CloudFlare-Worker'
+          },
+          body: JSON.stringify({
+            message: `Upload chunk ${chunkIndex + 1} of ${totalChunks} for ${uploadRecord.filename}`,
+            content: base64Data
+          })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('GitHub API错误:', errorData);
           
-          // 格式化为 YYYY-MM-DD HH:MM:SS 格式
-          const beijingTimeString = beijingNow.toISOString().replace('T', ' ').split('.')[0];
-          
-          console.log('北京时间字符串:', beijingTimeString);
-          
-          await env.DB.prepare(`
-            INSERT INTO images (filename, size, mime_type, github_path, sha, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).bind(
-            file.name,
-            file.size,
-            file.type,
-            filePath,
-            response.data.content.sha,
-            beijingTimeString,
-            beijingTimeString
+          // 更新上传状态为失败
+          await env.DB.prepare(
+            'UPDATE uploads SET status = ?, error = ? WHERE id = ?'
+          ).bind(
+            'failed',
+            `分片${chunkIndex}上传失败: ${errorData.message || '未知错误'}`,
+            uploadId
           ).run();
-
-          console.log('数据库保存成功');
-
-          // 返回各种格式的链接 - 使用包含年月日的完整路径
-          const imageUrl = `${env.SITE_URL}/images/${datePath}/${file.name}`;
-          console.log('返回图片链接:', imageUrl);
           
-          // 对URL进行编码处理，解决Markdown中特殊字符的问题
-          const encodedUrl = imageUrl
-            .replace(/\(/g, '%28')
-            .replace(/\)/g, '%29')
-            .replace(/\[/g, '%5B')
-            .replace(/\]/g, '%5D')
-            .replace(/</g, '%3C')
-            .replace(/>/g, '%3E')
-            .replace(/"/g, '%22')
-            .replace(/'/g, '%27')
-            .replace(/\\/g, '%5C')
-            .replace(/#/g, '%23')
-            .replace(/\|/g, '%7C')
-            .replace(/`/g, '%60')
-            .replace(/\s/g, '%20');
-
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: '分片上传到GitHub失败',
+            details: errorData.message || '未知错误'
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 更新已上传的分片数量
+        await env.DB.prepare(
+          'UPDATE uploads SET completed_chunks = completed_chunks + 1 WHERE id = ?'
+        ).bind(uploadId).run();
+        
+        // 重新获取更新后的记录
+        const updatedRecord = await env.DB.prepare(
+          'SELECT * FROM uploads WHERE id = ?'
+        ).bind(uploadId).first();
+        
+        // 检查是否所有分片都已上传
+        if (updatedRecord.completed_chunks >= updatedRecord.total_chunks) {
+          console.log(`所有分片已上传完成: ${updatedRecord.completed_chunks}/${updatedRecord.total_chunks}`);
+          
+          // 异步触发分片合并操作
+          // 在实际生产环境中，你可能需要使用队列或其他方式来处理这个耗时操作
+          handleChunkMerging(env, uploadId).catch(error => {
+            console.error('分片合并失败:', error);
+          });
+          
           return new Response(JSON.stringify({
             success: true,
-            data: {
-              url: imageUrl,
-              markdown: `![${file.name}](${encodedUrl})`,
-              html: `<img src="${imageUrl}" alt="${file.name}">`,
-              bbcode: `[img]${imageUrl}[/img]`
-            }
+            status: 'all_chunks_uploaded',
+            message: '所有分片已上传，正在合并文件',
+            upload_id: uploadId,
+            chunks_completed: updatedRecord.completed_chunks,
+            total_chunks: updatedRecord.total_chunks
           }), {
             headers: {
               'Content-Type': 'application/json',
               ...corsHeaders
             }
           });
-        } catch (error) {
-          console.error('GitHub API 错误:', error);
-          console.error('错误详情:', {
-            status: error.status,
-            message: error.message,
-            response: error.response?.data,
-            request: {
-              owner: env.GITHUB_OWNER,
-              repo: env.GITHUB_REPO,
-              path: filePath
-            }
-          });
-          
-          // 处理不同类型的GitHub API错误
-          if (error.status === 404) {
-            return new Response(JSON.stringify({ 
-              error: 'GitHub 仓库配置错误，请检查仓库名称和权限设置',
-              details: error.message
-            }), {
-              status: 500,
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
-          } else if (error.status === 409) {
-            return new Response(JSON.stringify({ 
-              error: `文件 "${file.name}" 已存在，请重命名后再上传或选择其他文件`,
-              details: 'File name conflict'
-            }), {
-              status: 409,
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
-          } else if (error.status === 401 || error.status === 403) {
-            return new Response(JSON.stringify({ 
-              error: 'GitHub 授权失败，请检查Token是否正确或是否有足够的权限',
-              details: error.message
-            }), {
-              status: 500,
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
-          } else if (error.message && error.message.includes('network')) {
-            return new Response(JSON.stringify({ 
-              error: '网络连接错误，无法连接到GitHub服务器',
-              details: error.message
-            }), {
-              status: 500,
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
-          }
-          throw error;
         }
-      } catch (error) {
-        console.error('上传错误:', error);
-        console.error('错误详情:', {
-          message: error.message,
-          stack: error.stack,
-          env: {
-            hasGithubToken: !!env.GITHUB_TOKEN,
-            hasGithubOwner: !!env.GITHUB_OWNER,
-            hasGithubRepo: !!env.GITHUB_REPO,
-            hasSiteUrl: !!env.SITE_URL,
-            hasDB: !!env.DB
+        
+        // 返回上传成功和进度信息
+        return new Response(JSON.stringify({
+          success: true,
+          upload_id: uploadId,
+          chunk_index: chunkIndex,
+          chunks_completed: updatedRecord.completed_chunks,
+          total_chunks: updatedRecord.total_chunks,
+          progress: Math.round((updatedRecord.completed_chunks / updatedRecord.total_chunks) * 100)
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
           }
         });
         
-        // 提供更具体的错误信息
-        let errorMessage = '上传失败';
-        
-        if (!env.GITHUB_TOKEN) {
-          errorMessage = 'GitHub Token未配置，请联系管理员';
-        } else if (!env.GITHUB_OWNER || !env.GITHUB_REPO) {
-          errorMessage = 'GitHub仓库配置不完整，请联系管理员';
-        } else if (!env.SITE_URL) {
-          errorMessage = '站点URL未配置，请联系管理员';
-        } else if (!env.DB) {
-          errorMessage = '数据库连接失败，请联系管理员';
-        } else if (error.message) {
-          // 自定义一些常见错误的更友好描述
-          if (error.message.includes('already exists')) {
-            errorMessage = `文件 "${file.name}" 已存在，请重命名后重试`;
-          } else if (error.message.includes('network')) {
-            errorMessage = '网络连接错误，请检查您的网络连接';
-          } else if (error.message.includes('permission') || error.message.includes('权限')) {
-            errorMessage = 'GitHub权限不足，请联系管理员检查配置';
-          } else {
-            errorMessage = `上传失败: ${error.message}`;
+      } catch (error) {
+        console.error('分片上传错误:', error);
+        return new Response(JSON.stringify({
+          success: false,
+          error: '分片上传失败',
+          details: error.message
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
           }
+        });
+      }
+    }
+    
+    // 处理上传状态查询
+    else if (path.toLowerCase() === 'upload/status') {
+      if (request.method !== 'GET') {
+        return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+          status: 405,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+
+      try {
+        const url = new URL(request.url);
+        const uploadId = url.searchParams.get('upload_id');
+        
+        if (!uploadId) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: '缺少upload_id参数' 
+          }), {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
         }
         
-        return new Response(JSON.stringify({ 
-          error: errorMessage,
+        // 获取上传记录
+        const uploadRecord = await env.DB.prepare(
+          'SELECT * FROM uploads WHERE id = ?'
+        ).bind(uploadId).first();
+        
+        if (!uploadRecord) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: '无效的上传ID'
+          }), {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 计算上传进度
+        const progress = Math.round((uploadRecord.completed_chunks / uploadRecord.total_chunks) * 100);
+        
+        // 如果上传完成，返回文件URL
+        let fileUrl = null;
+        if (uploadRecord.status === 'completed') {
+          // 从filepath构建URL
+          const baseUrl = await env.KV.get('base_url') || new URL(request.url).origin;
+          fileUrl = `${baseUrl}/${uploadRecord.filepath.replace('public/', '')}`;
+        }
+        
+        // 返回上传状态信息
+        return new Response(JSON.stringify({
+          success: true,
+          status: uploadRecord.status,
+          filename: uploadRecord.filename,
+          size: uploadRecord.size,
+          mime_type: uploadRecord.mime_type,
+          progress: progress,
+          chunks_completed: uploadRecord.completed_chunks,
+          total_chunks: uploadRecord.total_chunks,
+          created_at: uploadRecord.created_at,
+          file_url: fileUrl,
+          error: uploadRecord.error || null
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+        
+      } catch (error) {
+        console.error('查询上传状态错误:', error);
+        return new Response(JSON.stringify({
+          success: false,
+          error: '查询上传状态失败',
           details: error.message
         }), {
           status: 500,
