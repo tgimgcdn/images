@@ -327,6 +327,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             toast.textContent = message;
         }
         
+        // 添加关闭按钮
+        const closeButton = document.createElement('span');
+        closeButton.className = 'notification-close';
+        closeButton.innerHTML = '&times;';
+        closeButton.onclick = function(e) {
+            e.stopPropagation();
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                toast.style.display = 'none';
+                toast.style.opacity = '1';
+                toast.innerHTML = '';
+            }, 300);
+        };
+        toast.appendChild(closeButton);
+        
         toast.style.display = 'block';
         
         // 自动隐藏
