@@ -45,9 +45,9 @@ function getBeijingDatePath() {
   const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   
   // 格式化为 YYYY/MM/DD
-  const year = beijingTime.getUTCFullYear();
-  const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(beijingTime.getUTCDate()).padStart(2, '0');
+  const year = beijingTime.getFullYear();
+  const month = String(beijingTime.getMonth() + 1).padStart(2, '0');
+  const day = String(beijingTime.getDate()).padStart(2, '0');
   
   return `${year}/${month}/${day}`;
 }
