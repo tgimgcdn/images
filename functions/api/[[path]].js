@@ -567,6 +567,16 @@ export async function onRequest(context) {
           const encodedUrl = imageUrl
             .replace(/\(/g, '%28')
             .replace(/\)/g, '%29')
+            .replace(/\[/g, '%5B')
+            .replace(/\]/g, '%5D')
+            .replace(/</g, '%3C')
+            .replace(/>/g, '%3E')
+            .replace(/"/g, '%22')
+            .replace(/'/g, '%27')
+            .replace(/\\/g, '%5C')
+            .replace(/#/g, '%23')
+            .replace(/\|/g, '%7C')
+            .replace(/`/g, '%60')
             .replace(/\s/g, '%20');
 
           return new Response(JSON.stringify({
