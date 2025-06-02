@@ -214,8 +214,8 @@ api.post('/upload', async (c) => {
             file.type,
             `images/${file.name}`,
             response.data.content.sha,
-            new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-            new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()
+            formatBeijingTimeString(new Date(Date.now() + 8 * 60 * 60 * 1000)),
+            formatBeijingTimeString(new Date(Date.now() + 8 * 60 * 60 * 1000))
         ).run();
 
         // 返回各种格式的链接
@@ -298,4 +298,15 @@ api.post('/admin/login', async (c) => {
 });
 
 // 导出处理函数
-export default app; 
+export default app;
+
+// 辅助函数：格式化北京时间为字符串
+function formatBeijingTimeString(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const hour = String(date.getUTCHours()).padStart(2, '0');
+  const minute = String(date.getUTCMinutes()).padStart(2, '0');
+  const second = String(date.getUTCSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+} 
