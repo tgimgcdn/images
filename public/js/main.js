@@ -349,7 +349,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         markdownItem.className = 'link-item';
         let markdownLinks = '';
         results.forEach(result => {
-            markdownLinks += result.markdown + '\n';
+            // 获取原始URL和文件名
+            let url = result.url;
+            let filename = '';
+            
+            // 从markdown格式中提取文件名
+            const filenameMatch = result.markdown.match(/!\[(.*?)\]/);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1];
+            }
+            
+            // 对URL进行编码处理，确保Markdown能正确解析
+            const encodedUrl = url
+                .replace(/\(/g, '%28')
+                .replace(/\)/g, '%29')
+                .replace(/\[/g, '%5B')
+                .replace(/\]/g, '%5D')
+                .replace(/</g, '%3C')
+                .replace(/>/g, '%3E')
+                .replace(/"/g, '%22')
+                .replace(/'/g, '%27')
+                .replace(/\\/g, '%5C')
+                .replace(/#/g, '%23')
+                .replace(/\|/g, '%7C')
+                .replace(/`/g, '%60')
+                .replace(/\s/g, '%20');
+            
+            // 创建处理过的markdown链接
+            const processedMarkdown = `![${filename}](${encodedUrl})`;
+            markdownLinks += processedMarkdown + '\n';
         });
         markdownItem.innerHTML = `
             <label>Markdown</label>
