@@ -1403,18 +1403,39 @@ function formatDate(timestamp) {
         return '未知日期';
     }
     
-    // 创建日期对象 - 数据库返回的已经是北京时间，不需要再转换
-    const date = new Date(timestamp);
-    
-    // 直接使用toLocaleString格式化日期，采用中文格式
-    return date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-    });
+    try {
+        // 创建日期对象
+        const date = new Date(timestamp);
+        
+        // 检查是否为有效日期
+        if (isNaN(date.getTime())) {
+            return '无效日期';
+        }
+        
+        // 转换为北京时间 (UTC+8)
+        // 由于数据库可能已经存储了北京时间，我们需要判断一下
+        // 如果timestamp本身包含+08:00这样的时区标识，则不需要再调整
+        let beijingDate;
+        if (typeof timestamp === 'string' && (timestamp.includes('+08:00') || timestamp.includes('+0800'))) {
+            beijingDate = date; // 已经是北京时间
+        } else {
+            beijingDate = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+        }
+        
+        // 使用toLocaleString格式化日期，采用中文格式
+        return beijingDate.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'UTC' // 由于我们已经手动调整了时间，所以这里使用UTC避免再次调整
+        });
+    } catch (error) {
+        console.error('日期格式化错误:', error, timestamp);
+        return '日期错误';
+    }
 }
 
 function formatFileSize(bytes, decimals = 2) {
