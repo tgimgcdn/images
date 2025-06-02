@@ -8,6 +8,9 @@ upload.format = "directory"
 [site]
 bucket = "./public"
 
+# CloudFlare Pages 特定配置
+pages_build_output_dir = "./public"
+
 # 默认路由
 [[routes]]
 pattern = "/*"
