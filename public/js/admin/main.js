@@ -1890,6 +1890,19 @@ function optimizeForMobileDevices() {
     if (isMobile) {
         console.log('检测到移动设备，应用移动端优化设置');
         
+        // 立即设置更小的初始缩放比例，确保一开始就是最小状态
+        const metaViewport = document.querySelector('meta[name="viewport"]');
+        if (metaViewport) {
+            // 根据屏幕方向设置不同的缩放比例
+            if (window.orientation === 90 || window.orientation === -90) {
+                // 横屏
+                metaViewport.setAttribute('content', 'width=device-width, initial-scale=0.55, maximum-scale=1.0, user-scalable=yes');
+            } else {
+                // 竖屏
+                metaViewport.setAttribute('content', 'width=device-width, initial-scale=0.6, maximum-scale=1.0, user-scalable=yes');
+            }
+        }
+        
         // 1. 设置DOM元素适应小屏幕
         document.body.classList.add('mobile-view');
         
@@ -1914,7 +1927,7 @@ function optimizeForMobileDevices() {
                     // 横屏模式使用较小的初始缩放
                     const metaViewport = document.querySelector('meta[name="viewport"]');
                     if (metaViewport) {
-                        metaViewport.setAttribute('content', 'width=device-width, initial-scale=0.7, maximum-scale=1.0, user-scalable=yes');
+                        metaViewport.setAttribute('content', 'width=device-width, initial-scale=0.55, maximum-scale=1.0, user-scalable=yes');
                     }
                 } else {
                     console.log('竖屏模式，恢复布局');
@@ -1922,7 +1935,7 @@ function optimizeForMobileDevices() {
                     // 竖屏模式恢复较大的初始缩放
                     const metaViewport = document.querySelector('meta[name="viewport"]');
                     if (metaViewport) {
-                        metaViewport.setAttribute('content', 'width=device-width, initial-scale=0.8, maximum-scale=1.0, user-scalable=yes');
+                        metaViewport.setAttribute('content', 'width=device-width, initial-scale=0.6, maximum-scale=1.0, user-scalable=yes');
                     }
                 }
             }, 300); // 等待一段时间以确保方向改变后的DOM更新
