@@ -206,14 +206,16 @@ api.post('/upload', async (c) => {
 
         // 保存到数据库
         await c.env.DB.prepare(`
-            INSERT INTO images (filename, size, mime_type, github_path, sha)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO images (filename, size, mime_type, github_path, sha, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, datetime(?), datetime(?))
         `).bind(
             file.name,
             file.size,
             file.type,
             `images/${file.name}`,
-            response.data.content.sha
+            response.data.content.sha,
+            new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+            new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()
         ).run();
 
         // 返回各种格式的链接
