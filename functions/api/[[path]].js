@@ -760,24 +760,22 @@ export async function onRequest(context) {
         const totalSizeResult = await env.DB.prepare('SELECT SUM(size) as total_size FROM images').first();
         const totalSize = totalSizeResult && totalSizeResult.total_size ? totalSizeResult.total_size : 0;
         
-        // 获取今日上传数量 - 使用北京时间（UTC+8）
-        // 创建当前UTC时间
+        // 获取今日上传数量 - 直接使用当前日期，因为数据库中的时间已经是北京时间
+        // 获取今天的日期字符串（格式：YYYY-MM-DD）
         const now = new Date();
-        // 转换为北京时间（UTC+8）
-        const beijingOffset = 8 * 60 * 60 * 1000; // 8小时的毫秒数
-        const beijingNow = new Date(now.getTime() + beijingOffset);
-        // 获取北京时间的日期部分（重置为当天0点）
-        beijingNow.setUTCHours(0, 0, 0, 0);
-        // 转回UTC时间以获取正确的ISO字符串
-        const beijingTodayStart = new Date(beijingNow.getTime() - beijingOffset);
+        // 调整为北京时间
+        const beijingNow = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+        const year = beijingNow.getUTCFullYear();
+        const month = String(beijingNow.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(beijingNow.getUTCDate()).padStart(2, '0');
+        const todayDateString = `${year}-${month}-${day}`;
         
-        console.log('北京时间今日起点:', beijingNow.toISOString());
-        console.log('对应的UTC时间起点:', beijingTodayStart.toISOString());
+        console.log('今日日期字符串:', todayDateString);
         
-        // 使用大于等于查询，而不是LIKE查询，以便精确匹配日期
+        // 使用LIKE查询来匹配今天的日期
         const todayUploadsResult = await env.DB.prepare(
-          'SELECT COUNT(*) as count FROM images WHERE created_at >= ?'
-        ).bind(beijingTodayStart.toISOString()).first();
+          "SELECT COUNT(*) as count FROM images WHERE created_at LIKE ?"
+        ).bind(`${todayDateString}%`).first();
         
         const todayUploads = todayUploadsResult ? todayUploadsResult.count : 0;
         
