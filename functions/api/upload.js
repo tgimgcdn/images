@@ -36,6 +36,26 @@ function cleanupExpiredSessions() {
   }
 }
 
+// 将 ArrayBuffer 转换为 Base64 的安全方法，避免栈溢出
+function arrayBufferToBase64(buffer) {
+  // 对于大文件，分块处理
+  const CHUNK_SIZE = 32768; // 32KB 分块
+  let binary = '';
+  
+  // 创建一个 Uint8Array 视图来访问 buffer
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  
+  // 分块处理，避免栈溢出
+  for (let i = 0; i < len; i += CHUNK_SIZE) {
+    const chunk = bytes.slice(i, Math.min(i + CHUNK_SIZE, len));
+    const array = Array.from(chunk);
+    binary += String.fromCharCode.apply(null, array);
+  }
+  
+  return btoa(binary);
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -293,8 +313,10 @@ export async function onRequest(context) {
         offset += chunkBuffer.byteLength;
       }
       
-      // 将数据转换为Base64编码
-      const base64Data = btoa(String.fromCharCode(...mergedBuffer));
+      // 使用优化的方法将数据转换为Base64编码
+      console.log(`开始对 ${totalLength} 字节的文件进行Base64编码`);
+      const base64Data = arrayBufferToBase64(mergedBuffer.buffer);
+      console.log(`Base64编码完成，编码后长度: ${base64Data.length}`);
       
       // 使用GitHub API上传文件
       const octokit = new Octokit({
@@ -308,6 +330,8 @@ export async function onRequest(context) {
       const randomSuffix = Date.now().toString().slice(-6);
       const uniqueFileName = `${baseName}_${randomSuffix}.${ext}`;
       
+      console.log(`准备上传文件到GitHub: ${uniqueFileName}`);
+      
       // 上传到GitHub
       const response = await octokit.rest.repos.createOrUpdateFileContents({
         owner: env.GITHUB_OWNER,
@@ -317,6 +341,8 @@ export async function onRequest(context) {
         content: base64Data,
         branch: 'main'
       });
+      
+      console.log(`文件上传到GitHub成功，SHA: ${response.data.content.sha}`);
       
       // 保存到数据库
       try {
@@ -330,6 +356,8 @@ export async function onRequest(context) {
           `images/${uniqueFileName}`,
           response.data.content.sha
         ).run();
+        
+        console.log(`文件信息已保存到数据库`);
       } catch (dbError) {
         console.error('数据库保存失败:', dbError);
         // 继续执行，不因为数据库错误而中断响应
