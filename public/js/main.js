@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 存储待上传的文件
     let pendingFiles = [];
+    // 活跃的上传器列表
+    let activeUploaders = [];
 
     // 初始化文件上传功能
     function initUpload() {
@@ -133,7 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
-    // 上传文件
+    // 上传文件 - 使用分块上传
     async function uploadFiles(files) {
         const startTime = Date.now();
         let uploadedCount = 0;
@@ -149,350 +151,267 @@ document.addEventListener('DOMContentLoaded', async () => {
         progressSpeed.textContent = '0 KB/s';
         uploadProgress.style.display = 'block';
 
+        // 清除现有的上传器
+        activeUploaders.forEach(uploader => {
+            if (uploader.status === 'uploading') {
+                uploader.cancel();
+            }
+        });
+        activeUploaders = [];
+
+        // 逐个上传文件，使用分块上传组件
         for (const file of files) {
             try {
                 console.log(`开始上传文件: ${file.name}, 大小: ${file.size}`);
                 
-                // 使用支持进度的上传方法
-                const result = await uploadFileWithProgress(file, (loaded, total) => {
-                    // 计算总体进度 (已上传完成的文件 + 当前文件的进度)
-                    const overallProgress = (uploadedBytes + loaded) / totalBytes;
-                    const percent = Math.min(100, Math.round(overallProgress * 100));
-                    
-                    // 更新进度条
-                    progressBar.style.width = percent + '%';
-                    progressText.textContent = percent + '%';
-                    
-                    // 计算上传速度
-                    const elapsedSeconds = (Date.now() - startTime) / 1000;
-                    if (elapsedSeconds > 0) {
-                        const speed = (uploadedBytes + loaded) / elapsedSeconds;
-                        progressSpeed.textContent = formatSpeed(speed);
+                // 创建分块上传器
+                const uploader = new ChunkedUploader(file, {
+                    // 进度更新回调
+                    onProgress: (progressData) => {
+                        // 计算总体进度 (已上传完成的文件 + 当前文件的进度)
+                        const fileContribution = progressData.uploadedSize / totalBytes;
+                        const completedContribution = uploadedBytes / totalBytes;
+                        const overallProgress = completedContribution + fileContribution;
+                        const percent = Math.min(100, Math.round(overallProgress * 100));
+                        
+                        // 更新进度条
+                        progressBar.style.width = percent + '%';
+                        progressText.textContent = percent + '%';
+                        
+                        // 计算上传速度
+                        const elapsedSeconds = (Date.now() - startTime) / 1000;
+                        if (elapsedSeconds > 0) {
+                            const speed = (uploadedBytes + progressData.uploadedSize) / elapsedSeconds;
+                            progressSpeed.textContent = formatSpeed(speed);
+                        }
+                    },
+                    // 上传完成回调
+                    onComplete: (result) => {
+                        uploadedCount++;
+                        uploadedBytes += file.size;
+                        uploadedResults.push(result.data);
+                        
+                        // 显示所有文件的上传结果
+                        if (uploadedCount === totalFiles) {
+                            showResult(uploadedResults);
+                        }
+                    },
+                    // 错误处理回调
+                    onError: (error) => {
+                        showToast(error.message || '上传失败');
                     }
                 });
                 
-                if (result.success) {
-                    uploadedCount++;
-                    uploadedBytes += file.size;
-                    uploadedResults.push(result.data);
-                    
-                    // 显示所有文件的上传结果
-                    if (uploadedCount === totalFiles) {
-                        showResult(uploadedResults);
-                    }
-                } else {
-                    showToast(result.error || '上传失败');
-                }
+                activeUploaders.push(uploader);
+                uploader.start();
+                
             } catch (error) {
                 showToast(error.message);
             }
         }
 
-        // 隐藏进度条
-        uploadProgress.style.display = 'none';
-        progressBar.style.width = '0%';
-
-        // 清空文件列表和确认按钮
+        // 隐藏文件列表和确认按钮
         const fileList = document.querySelector('.file-list');
         const confirmBtn = document.querySelector('.confirm-upload-btn');
         if (fileList) fileList.remove();
         if (confirmBtn) confirmBtn.remove();
     }
 
-    // 使用XMLHttpRequest上传文件并显示进度
-    function uploadFileWithProgress(file, onProgress) {
-        return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            // 监听上传进度
-            xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable && onProgress) {
-                    onProgress(e.loaded, e.total);
-                }
-            });
-            
-            // 监听请求完成
-            xhr.addEventListener('load', () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        resolve(response);
-                    } catch (error) {
-                        reject(new Error('解析响应失败: ' + error.message));
-                    }
-                } else {
-                    let errorMessage = '上传失败';
-                    let errorDetails = '';
-                    try {
-                        const errorResponse = JSON.parse(xhr.responseText);
-                        errorMessage = errorResponse.error || `服务器错误 (${xhr.status})`;
-                        errorDetails = errorResponse.details || '';
-                        
-                        // 处理特定类型的错误
-                        if (xhr.status === 409) {
-                            // 文件已存在冲突
-                            errorMessage = `文件 "${file.name}" 已存在，请重命名后重试`;
-                        } else if (xhr.status === 413) {
-                            // 文件太大
-                            errorMessage = '文件大小超过服务器限制';
-                        } else if (xhr.status === 403) {
-                            // 权限不足
-                            errorMessage = '您没有权限上传文件';
-                            if (errorResponse.error && errorResponse.error.includes('游客上传已禁用')) {
-                                errorMessage = '游客上传已禁用，请登录后再试';
-                            }
-                        }
-                    } catch (e) {
-                        errorMessage = `服务器错误 (${xhr.status})`;
-                    }
-                    
-                    const error = new Error(errorMessage);
-                    error.details = errorDetails;
-                    error.status = xhr.status;
-                    reject(error);
-                }
-            });
-            
-            // 监听错误
-            xhr.addEventListener('error', () => {
-                const error = new Error('网络连接错误，请检查您的网络连接');
-                error.isNetworkError = true;
-                reject(error);
-            });
-            
-            xhr.addEventListener('abort', () => {
-                reject(new Error('上传已取消'));
-            });
-            
-            // 发送请求
-            xhr.open('POST', '/api/upload', true);
-            xhr.send(formData);
-        });
-    }
-
     // 显示上传结果
     function showResult(results) {
-        console.log('显示结果:', results);
+        // 隐藏进度条
+        const uploadProgress = document.querySelector('.upload-progress');
+        uploadProgress.style.display = 'none';
         
-        if (!results || results.length === 0) {
+        // 获取第一个结果用于显示
+        const firstResult = results[0];
+        
+        if (!firstResult) {
+            showToast('上传成功，但未返回链接信息');
             return;
+        }
+        
+        // 更新各种链接格式
+        const linkInputs = document.querySelectorAll('.link-input');
+        
+        // 直接链接
+        linkInputs[0].value = firstResult.url;
+        
+        // Markdown
+        linkInputs[1].value = firstResult.markdown;
+        
+        // HTML
+        linkInputs[2].value = firstResult.html;
+        
+        // BBCode
+        linkInputs[3].value = firstResult.bbcode;
+        
+        // 如果有多个文件，显示附加信息
+        if (results.length > 1) {
+            // 添加多文件上传信息
+            const multipleFilesNotice = document.createElement('div');
+            multipleFilesNotice.className = 'multiple-files-notice';
+            multipleFilesNotice.innerHTML = `
+                <p>成功上传了 ${results.length} 个文件，上方显示第一个文件的链接。</p>
+                <details>
+                    <summary>查看所有文件链接</summary>
+                    <div class="all-links"></div>
+                </details>
+            `;
+            
+            document.querySelector('.result-content').appendChild(multipleFilesNotice);
+            
+            // 添加所有文件的链接
+            const allLinksContainer = multipleFilesNotice.querySelector('.all-links');
+            results.forEach((result, index) => {
+                const linkItem = document.createElement('div');
+                linkItem.className = 'all-link-item';
+                linkItem.innerHTML = `
+                    <h4>文件 ${index + 1}</h4>
+                    <div class="link-row">
+                        <span class="link-label">链接:</span>
+                        <input type="text" value="${result.url}" readonly>
+                        <button class="copy-all-btn" data-link="${result.url}">复制</button>
+                    </div>
+                `;
+                allLinksContainer.appendChild(linkItem);
+            });
+            
+            // 添加复制按钮事件
+            document.querySelectorAll('.copy-all-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const linkValue = btn.getAttribute('data-link');
+                    copyToClipboard(linkValue);
+                    showToast('链接已复制到剪贴板', 'success');
+                });
+            });
         }
         
         // 显示结果容器
-        resultContainer.style.display = 'block';
+        document.querySelector('.result-container').style.display = 'block';
         
-        // 将链接值填充到表单
-        const linkInputs = document.querySelectorAll('.link-input');
-        
-        // 如果有多个结果，为每种格式合并多个链接，每行一个
-        if (linkInputs && linkInputs.length > 0) {
-            // URL
-            linkInputs[0].value = results.map(r => r.url).join('\n');
-            
-            // Markdown - API已返回编码后的markdown链接
-            linkInputs[1].value = results.map(r => r.markdown).join('\n');
-            
-            // HTML
-            linkInputs[2].value = results.map(r => r.html).join('\n');
-            
-            // BBCode
-            linkInputs[3].value = results.map(r => r.bbcode).join('\n');
-        }
-        
-        // 添加复制功能
+        // 添加复制按钮事件
         document.querySelectorAll('.copy-btn').forEach(btn => {
-            btn.onclick = () => {
-                const type = btn.dataset.type;
-                const input = btn.previousElementSibling;
-                input.select();
-                document.execCommand('copy');
-                showToast('已复制到剪贴板');
-            };
+            btn.addEventListener('click', () => {
+                const type = btn.getAttribute('data-type');
+                const inputElement = btn.previousElementSibling;
+                copyToClipboard(inputElement.value);
+                showToast('链接已复制到剪贴板', 'success');
+            });
         });
     }
 
-    // 显示提示消息
+    // 显示消息提示
     function showToast(message, type = 'error', duration = 5000) {
-        // 如果已有toast，先移除
-        if (toast.style.display === 'block') {
-            toast.style.display = 'none';
-            setTimeout(() => showToast(message, type, duration), 300);
-            return;
-        }
+        // 清除所有现有的提示
+        clearTimeout(toast.timeoutId);
         
-        // 设置toast类型样式
-        toast.className = 'toast';
-        toast.classList.add(type);
+        // 设置提示内容和样式
+        toast.textContent = message;
+        toast.className = `toast ${type}`;
         
-        // 处理复杂的错误对象
-        if (message instanceof Error) {
-            let errorContent = `<div class="toast-title">${message.message}</div>`;
-            if (message.details) {
-                errorContent += `<div class="toast-details">${message.details}</div>`;
-            }
-            toast.innerHTML = errorContent;
-        } else {
-            toast.textContent = message;
-        }
-        
-        // 添加关闭按钮
-        const closeButton = document.createElement('span');
-        closeButton.className = 'notification-close';
-        closeButton.innerHTML = '&times;';
-        closeButton.onclick = function(e) {
-            e.stopPropagation();
-            toast.style.opacity = '0';
-            setTimeout(() => {
-                toast.style.display = 'none';
-                toast.style.opacity = '1';
-                toast.innerHTML = '';
-            }, 300);
-        };
-        toast.appendChild(closeButton);
-        
+        // 显示提示
         toast.style.display = 'block';
+        toast.style.opacity = '1';
         
-        // 自动隐藏
-        const toastTimeout = setTimeout(() => {
+        // 设置自动隐藏
+        toast.timeoutId = setTimeout(() => {
             toast.style.opacity = '0';
             setTimeout(() => {
                 toast.style.display = 'none';
-                toast.style.opacity = '1';
-                toast.innerHTML = '';
             }, 300);
         }, duration);
+    }
+    
+    // 复制到剪贴板
+    function copyToClipboard(text) {
+        // 创建一个临时输入框
+        const input = document.createElement('textarea');
+        input.style.position = 'fixed';
+        input.style.opacity = 0;
+        input.value = text;
+        document.body.appendChild(input);
         
-        // 点击关闭
-        toast.onclick = () => {
-            clearTimeout(toastTimeout);
-            toast.style.opacity = '0';
-            setTimeout(() => {
-                toast.style.display = 'none';
-                toast.style.opacity = '1';
-                toast.innerHTML = '';
-            }, 300);
-        };
+        // 选择并复制
+        input.select();
+        document.execCommand('copy');
+        
+        // 移除临时元素
+        document.body.removeChild(input);
     }
-
-    // 格式化速度显示
+    
+    // 格式化上传速度
     function formatSpeed(bytesPerSecond) {
-        if (bytesPerSecond < 1024) {
-            return bytesPerSecond.toFixed(1) + ' B/s';
-        } else if (bytesPerSecond < 1024 * 1024) {
-            return (bytesPerSecond / 1024).toFixed(1) + ' KB/s';
-        } else {
-            return (bytesPerSecond / (1024 * 1024)).toFixed(1) + ' MB/s';
-        }
+        if (bytesPerSecond === 0) return '0 B/s';
+        
+        const k = 1024;
+        const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+        const i = Math.floor(Math.log(bytesPerSecond) / Math.log(k));
+        
+        return parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
-
+    
     // 检查是否允许游客上传
-    let retryCount = 0;
-    const maxRetries = 3;
-
     async function checkGuestUpload() {
         try {
-            const response = await fetch('/api/settings/guest-upload', {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json'
-                },
-                credentials: 'same-origin'
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('Invalid response format');
-            }
-
-            const data = await response.json();
-            console.log('游客上传权限检查结果:', data);
+            const response = await fetch('/api/settings/guest-upload');
             
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to load settings');
-            }
-            
-            // 检查是否有会话cookie（是否已登录）
-            const isLoggedIn = document.cookie.includes('session_id=');
-            
-            // 如果未登录且不允许游客上传，则显示禁用信息
-            if (!isLoggedIn && !data.data.allowGuestUpload) {
-                console.log('未登录且游客上传已禁用，显示提示信息');
-                dropZone.innerHTML = `
-                    <div class="upload-content">
-                        <i class="fas fa-lock upload-icon"></i>
-                        <h2>游客上传已禁用</h2>
-                        <p>请<a href="/admin/login.html">登录</a>后上传图片</p>
-                    </div>
-                `;
-                // 禁用拖拽上传功能
-                disableUpload();
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const { allowGuestUpload } = data.data;
+                    
+                    if (!allowGuestUpload) {
+                        disableUpload('游客上传当前已禁用，请联系管理员或登录后再试。');
+                    }
+                }
             } else {
-                console.log('允许上传，初始化上传功能');
-                // 初始化上传功能
-                initUpload();
+                // 无法获取设置，假设允许上传
+                console.warn('无法获取游客上传设置，默认允许上传');
             }
         } catch (error) {
-            console.error('Failed to load settings:', error);
-            if (retryCount < maxRetries) {
-                retryCount++;
-                const delay = 1000 * retryCount;
-                setTimeout(checkGuestUpload, delay);
-            } else {
-                showToast('加载设置失败，请刷新页面重试');
-                // 出错时默认允许上传，避免错误阻止已登录用户
-                initUpload();
-            }
+            console.error('检查游客上传设置失败:', error);
+            // 出错时默认允许上传
         }
     }
-
+    
     // 禁用上传功能
-    function disableUpload() {
-        // 不再尝试移除特定的事件监听器，而是替换整个dropZone的事件
+    function disableUpload(message) {
+        uploadBtn.disabled = true;
+        uploadBtn.classList.add('disabled');
         
-        // 创建新的拖放防止事件 - 这会阻止任何拖放操作
+        const warningMessage = document.createElement('div');
+        warningMessage.className = 'warning-message';
+        warningMessage.textContent = message;
+        
+        // 移除现有的警告消息
+        const existingWarning = document.querySelector('.warning-message');
+        if (existingWarning) {
+            existingWarning.remove();
+        }
+        
+        // 添加警告消息
+        uploadContainer.appendChild(warningMessage);
+        
+        // 阻止拖放
         const preventDrag = (e) => {
             e.preventDefault();
             e.stopPropagation();
             return false;
         };
         
-        // 添加事件处理程序来阻止任何拖放操作
         dropZone.addEventListener('dragover', preventDrag);
         dropZone.addEventListener('dragenter', preventDrag);
         dropZone.addEventListener('dragleave', preventDrag);
         dropZone.addEventListener('drop', preventDrag);
         
-        // 修改点击事件处理，允许链接点击通过
-        dropZone.addEventListener('click', (e) => {
-            // 检查点击的元素或其父元素是否是链接
-            const isLink = e.target.tagName === 'A' || e.target.closest('a');
-            
-            // 如果是链接，就不阻止事件
-            if (!isLink) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        });
-        
-        // 禁用文件输入框
-        const fileInput = document.getElementById('fileInput');
-        if (fileInput) {
-            fileInput.disabled = true;
-        }
-        
-        // 添加禁用样式
+        // 修改样式
         dropZone.classList.add('disabled');
+        uploadBtn.textContent = '上传已禁用';
     }
-
-    // 注释掉这个初始化调用，改为在checkGuestUpload后根据权限决定是否初始化
-    // initUpload();
-
-    // 开始检查游客上传权限
+    
+    // 初始化
+    initUpload();
     checkGuestUpload();
 }); 
