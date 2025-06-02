@@ -224,19 +224,42 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 } else {
                     let errorMessage = '上传失败';
+                    let errorDetails = '';
                     try {
                         const errorResponse = JSON.parse(xhr.responseText);
                         errorMessage = errorResponse.error || `服务器错误 (${xhr.status})`;
+                        errorDetails = errorResponse.details || '';
+                        
+                        // 处理特定类型的错误
+                        if (xhr.status === 409) {
+                            // 文件已存在冲突
+                            errorMessage = `文件 "${file.name}" 已存在，请重命名后重试`;
+                        } else if (xhr.status === 413) {
+                            // 文件太大
+                            errorMessage = '文件大小超过服务器限制';
+                        } else if (xhr.status === 403) {
+                            // 权限不足
+                            errorMessage = '您没有权限上传文件';
+                            if (errorResponse.error && errorResponse.error.includes('游客上传已禁用')) {
+                                errorMessage = '游客上传已禁用，请登录后再试';
+                            }
+                        }
                     } catch (e) {
                         errorMessage = `服务器错误 (${xhr.status})`;
                     }
-                    reject(new Error(errorMessage));
+                    
+                    const error = new Error(errorMessage);
+                    error.details = errorDetails;
+                    error.status = xhr.status;
+                    reject(error);
                 }
             });
             
             // 监听错误
             xhr.addEventListener('error', () => {
-                reject(new Error('网络错误'));
+                const error = new Error('网络连接错误，请检查您的网络连接');
+                error.isNetworkError = true;
+                reject(error);
             });
             
             xhr.addEventListener('abort', () => {
@@ -281,13 +304,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 显示提示消息
-    function showToast(message) {
-        toast.textContent = message;
+    function showToast(message, type = 'error', duration = 5000) {
+        // 如果已有toast，先移除
+        if (toast.style.display === 'block') {
+            toast.style.display = 'none';
+            setTimeout(() => showToast(message, type, duration), 300);
+            return;
+        }
+        
+        // 设置toast类型样式
+        toast.className = 'toast';
+        toast.classList.add(type);
+        
+        // 处理复杂的错误对象
+        if (message instanceof Error) {
+            let errorContent = `<div class="toast-title">${message.message}</div>`;
+            if (message.details) {
+                errorContent += `<div class="toast-details">${message.details}</div>`;
+            }
+            toast.innerHTML = errorContent;
+        } else {
+            toast.textContent = message;
+        }
+        
         toast.style.display = 'block';
         
-        setTimeout(() => {
-            toast.style.display = 'none';
-        }, 3000);
+        // 自动隐藏
+        const toastTimeout = setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                toast.style.display = 'none';
+                toast.style.opacity = '1';
+                toast.innerHTML = '';
+            }, 300);
+        }, duration);
+        
+        // 点击关闭
+        toast.onclick = () => {
+            clearTimeout(toastTimeout);
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                toast.style.display = 'none';
+                toast.style.opacity = '1';
+                toast.innerHTML = '';
+            }, 300);
+        };
     }
 
     // 格式化速度显示
