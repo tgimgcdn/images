@@ -1801,13 +1801,40 @@ async function uploadSelectedFiles(files) {
     const totalFiles = files.length;
     let uploadedCount = 0;
     let successCount = 0;
-    let uploadedBytes = 0;
-    const totalBytes = Array.from(files).reduce((total, file) => total + file.size, 0);
-    const startTime = Date.now();
     let needsRefresh = false;
     
     // 保持当前页面滚动位置
     const scrollPos = window.scrollY;
+    
+    // 检查是否加载了ChunkUploader库
+    if (typeof ChunkUploader !== 'function') {
+        // 动态加载分片上传库
+        await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = '/js/chunk-upload.js';
+            script.onload = resolve;
+            script.onerror = () => {
+                reject(new Error('无法加载分片上传库'));
+            };
+            document.head.appendChild(script);
+        }).catch(error => {
+            console.error('加载分片上传库失败:', error);
+            showNotification('无法加载分片上传库，将使用常规上传', 'warning');
+        });
+    }
+    
+    // 使用常规上传还是分片上传
+    const useChunkedUpload = typeof ChunkUploader === 'function';
+    console.log('使用分片上传:', useChunkedUpload);
+    
+    const startTime = Date.now();
+    const updateSpeed = (loaded, total) => {
+        const elapsedSeconds = (Date.now() - startTime) / 1000;
+        if (elapsedSeconds > 0) {
+            const speed = loaded / elapsedSeconds;
+            progressSpeed.textContent = formatFileSize(speed, 2) + '/s';
+        }
+    };
     
     for (const file of files) {
         if (!file.type.startsWith('image/')) {
@@ -1818,35 +1845,54 @@ async function uploadSelectedFiles(files) {
         try {
             console.log(`开始上传文件: ${file.name}, 类型: ${file.type}, 大小: ${file.size} 字节`);
             
-            // 使用XMLHttpRequest替代fetch以便跟踪上传进度
-            const result = await uploadFileWithProgress(file, (loaded, total) => {
-                // 更新当前文件的进度
-                const currentFileProgress = loaded / total;
+            let result;
+            
+            if (useChunkedUpload && file.size > 5 * 1024 * 1024) { // 对于大于5MB的文件使用分片上传
+                // 使用分片上传
+                const chunkUploader = new ChunkUploader({
+                    onProgress: (progress) => {
+                        // 更新进度条
+                        const percent = progress.percentage;
+                        progressBar.style.width = percent + '%';
+                        progressText.textContent = percent + '%';
+                        
+                        // 更新速度
+                        updateSpeed(progress.loaded, progress.total);
+                    },
+                    onError: (error) => {
+                        console.error('分片上传错误:', error);
+                    }
+                });
                 
-                // 计算总体进度 (已上传完成的文件 + 当前文件的进度)
-                const overallProgress = (uploadedBytes + loaded) / totalBytes;
-                const percent = Math.min(100, Math.round(overallProgress * 100));
-                
-                // 更新进度条
-                progressBar.style.width = percent + '%';
-                progressText.textContent = percent + '%';
+                result = await chunkUploader.upload(file);
+            } else {
+                // 使用原有的上传方法
+                result = await uploadFileWithProgress(file, (loaded, total) => {
+                    // 更新进度条
+                    const percent = Math.min(100, Math.round((loaded / total) * 100));
+                    progressBar.style.width = percent + '%';
+                    progressText.textContent = percent + '%';
                     
-                // 计算上传速度
-                const elapsedSeconds = (Date.now() - startTime) / 1000;
-                if (elapsedSeconds > 0) {
-                    const speed = (uploadedBytes + loaded) / elapsedSeconds;
-                    progressSpeed.textContent = formatFileSize(speed, 2) + '/s';
-                }
-            });
+                    // 更新速度
+                    updateSpeed(loaded, total);
+                });
+            }
             
             uploadedCount++;
-            uploadedBytes += file.size;
             
             if (result.success) {
                 successCount++;
                 needsRefresh = true;
                 showNotification(`${file.name} 上传成功`, 'success', 2000);
-                // 不再每次都刷新图片列表，延迟到所有文件上传完成后
+                
+                // 如果返回了文件信息，立即添加到图片列表
+                if (result.file) {
+                    const imageGallery = document.getElementById('imageGallery');
+                    if (imageGallery && typeof createImageCard === 'function') {
+                        const card = createImageCard(result.file);
+                        imageGallery.prepend(card);
+                    }
+                }
             } else {
                 showNotification(`上传失败: ${result.error || '未知错误'}`, 'error');
             }
