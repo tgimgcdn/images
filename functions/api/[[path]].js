@@ -562,12 +562,18 @@ export async function onRequest(context) {
           // 返回各种格式的链接 - 使用包含年月日的完整路径
           const imageUrl = `${env.SITE_URL}/images/${datePath}/${file.name}`;
           console.log('返回图片链接:', imageUrl);
+          
+          // 对URL进行编码处理，解决Markdown中特殊字符的问题
+          const encodedUrl = imageUrl
+            .replace(/\(/g, '%28')
+            .replace(/\)/g, '%29')
+            .replace(/\s/g, '%20');
 
           return new Response(JSON.stringify({
             success: true,
             data: {
               url: imageUrl,
-              markdown: `![${file.name}](${imageUrl})`,
+              markdown: `![${file.name}](${encodedUrl})`,
               html: `<img src="${imageUrl}" alt="${file.name}">`,
               bbcode: `[img]${imageUrl}[/img]`
             }
