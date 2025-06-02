@@ -1705,9 +1705,14 @@ async function uploadSelectedFiles(files) {
     
     const totalFiles = files.length;
     let uploadedCount = 0;
+    let successCount = 0;
     let uploadedBytes = 0;
     const totalBytes = Array.from(files).reduce((total, file) => total + file.size, 0);
     const startTime = Date.now();
+    let needsRefresh = false;
+    
+    // 保持当前页面滚动位置
+    const scrollPos = window.scrollY;
     
     for (const file of files) {
         if (!file.type.startsWith('image/')) {
@@ -1728,8 +1733,8 @@ async function uploadSelectedFiles(files) {
                 const percent = Math.min(100, Math.round(overallProgress * 100));
                 
                 // 更新进度条
-                    progressBar.style.width = percent + '%';
-                    progressText.textContent = percent + '%';
+                progressBar.style.width = percent + '%';
+                progressText.textContent = percent + '%';
                     
                 // 计算上传速度
                 const elapsedSeconds = (Date.now() - startTime) / 1000;
@@ -1743,12 +1748,11 @@ async function uploadSelectedFiles(files) {
             uploadedBytes += file.size;
             
             if (result.success) {
-                showNotification(`${file.name} 上传成功`, 'success');
-                // 刷新图片列表
-                loadImages(1);
-                // 更新控制面板统计
-                updateDashboardStats();
-                } else {
+                successCount++;
+                needsRefresh = true;
+                showNotification(`${file.name} 上传成功`, 'success', 2000);
+                // 不再每次都刷新图片列表，延迟到所有文件上传完成后
+            } else {
                 showNotification(`上传失败: ${result.error || '未知错误'}`, 'error');
             }
         } catch (error) {
@@ -1776,11 +1780,27 @@ async function uploadSelectedFiles(files) {
     if (fileList) fileList.remove();
     if (confirmBtn) confirmBtn.remove();
     
+    // 仅在所有文件上传完成后刷新一次图片列表和控制面板
+    if (needsRefresh) {
+        console.log('刷新图片列表和控制面板');
+        loadImages(1);
+        updateDashboardStats();
+    }
+    
     // 如果全部上传成功，关闭模态框
-    if (uploadedCount === totalFiles) {
+    if (uploadedCount === totalFiles && successCount > 0) {
         setTimeout(() => {
             modal.style.display = 'none';
+            
+            // 尝试恢复滚动位置
+            setTimeout(() => {
+                window.scrollTo(0, scrollPos);
+            }, 100);
         }, 1500);
+    }
+    
+    if (successCount > 0) {
+        showNotification(`成功上传了 ${successCount} 个文件`, 'success');
     }
 }
 
