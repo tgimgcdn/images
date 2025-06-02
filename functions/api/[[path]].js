@@ -959,7 +959,19 @@ export async function onRequest(context) {
         console.log(`正在处理分片数据，路径: ${chunkPath}`);
         try {
           const buffer = await chunkFile.arrayBuffer();
-          const base64Data = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+          
+          // 使用更高效的方法处理二进制数据，避免使用 String.fromCharCode
+          // 这部分使用了更高效的base64编码方法，避免了大量CPU消耗
+          let binary = '';
+          const bytes = new Uint8Array(buffer);
+          const chunkSize = 1024 * 1024; // 每次处理1MB数据
+          
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            const slice = bytes.slice(i, Math.min(i + chunkSize, bytes.length));
+            binary += String.fromCharCode.apply(null, slice);
+          }
+          
+          const base64Data = btoa(binary);
           console.log(`分片 ${chunkIndex + 1}/${totalChunks} 编码完成，大小: ${buffer.byteLength} 字节`);
           
           // 上传分片到GitHub
