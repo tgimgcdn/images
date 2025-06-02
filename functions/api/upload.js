@@ -109,6 +109,123 @@ export async function onRequest(context) {
     });
   }
   
+  // 处理后台直接上传（非分块）
+  if (action === 'upload' && request.method === 'POST') {
+    try {
+      // 解析表单数据
+      const formData = await request.formData();
+      const file = formData.get('file');
+      
+      if (!file) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: '未找到上传文件'
+        }), {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      
+      // 验证文件类型
+      if (!file.type.startsWith('image/')) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: '仅支持上传图片文件'
+        }), {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      
+      // 读取文件内容
+      const fileBuffer = await file.arrayBuffer();
+      const base64Data = arrayBufferToBase64(fileBuffer);
+      
+      // 使用GitHub API上传文件
+      const octokit = new Octokit({
+        auth: env.GITHUB_TOKEN
+      });
+      
+      // 获取北京时间的日期路径
+      const datePath = getBeijingDatePath();
+      
+      // 使用原始文件名
+      const fileName = file.name;
+      
+      // 构建完整路径：public/images/年/月/日/文件名
+      const filePath = `public/images/${datePath}/${fileName}`;
+      
+      console.log(`后台直接上传文件到GitHub: ${filePath}`);
+      
+      // 上传到GitHub
+      const response = await octokit.rest.repos.createOrUpdateFileContents({
+        owner: env.GITHUB_OWNER,
+        repo: env.GITHUB_REPO,
+        path: filePath,
+        message: `Upload ${fileName} (${datePath})`,
+        content: base64Data,
+        branch: 'main'
+      });
+      
+      console.log(`文件上传到GitHub成功，SHA: ${response.data.content.sha}`);
+      
+      // 保存到数据库
+      try {
+        await env.DB.prepare(`
+          INSERT INTO images (filename, size, mime_type, github_path, sha)
+          VALUES (?, ?, ?, ?, ?)
+        `).bind(
+          fileName,
+          file.size,
+          file.type,
+          filePath,
+          response.data.content.sha
+        ).run();
+        
+        console.log(`文件信息已保存到数据库`);
+      } catch (dbError) {
+        console.error('数据库保存失败:', dbError);
+        // 继续执行，不因为数据库错误而中断响应
+      }
+      
+      // 返回链接信息
+      const imageUrl = `${env.SITE_URL}/images/${datePath}/${fileName}`;
+      return new Response(JSON.stringify({
+        success: true,
+        data: {
+          url: imageUrl,
+          markdown: `![${fileName}](${imageUrl})`,
+          html: `<img src="${imageUrl}" alt="${fileName}">`,
+          bbcode: `[img]${imageUrl}[/img]`
+        }
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      });
+    } catch (error) {
+      console.error('直接上传失败:', error);
+      return new Response(JSON.stringify({
+        success: false,
+        error: '上传失败',
+        details: error.message
+      }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      });
+    }
+  }
+  
   // 创建上传会话
   if (action === 'create-session' && request.method === 'POST') {
     try {
@@ -486,6 +603,7 @@ export async function onRequest(context) {
     error: '无效的API请求',
     usage: '请使用查询参数指定操作，例如: /api/upload?action=create-session',
     availableActions: [
+      'upload',
       'create-session',
       'chunk',
       'complete',
