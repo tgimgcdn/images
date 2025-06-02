@@ -345,11 +345,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const multipleFilesNotice = document.createElement('div');
             multipleFilesNotice.className = 'multiple-files-notice';
             multipleFilesNotice.innerHTML = `
-                <p>成功上传了 ${results.length} 个文件，上方显示第一个文件的链接。</p>
-                <details>
-                    <summary>查看所有文件链接</summary>
-                    <div class="all-links"></div>
-                </details>
+                <p>成功上传了 ${results.length} 个文件：</p>
+                <div class="all-links"></div>
             `;
             
             document.querySelector('.result-content').appendChild(multipleFilesNotice);
@@ -361,10 +358,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                 linkItem.className = 'all-link-item';
                 linkItem.innerHTML = `
                     <h4>文件 ${index + 1}</h4>
-                    <div class="link-row">
-                        <span class="link-label">链接:</span>
-                        <input type="text" value="${result.url}" readonly>
-                        <button class="copy-all-btn" data-link="${result.url}">复制</button>
+                    <div class="link-rows">
+                        <div class="link-row">
+                            <span class="link-label">URL:</span>
+                            <input type="text" value="${result.url}" readonly>
+                            <button class="copy-all-btn" data-link="${result.url}">复制</button>
+                        </div>
+                        <div class="link-row">
+                            <span class="link-label">Markdown:</span>
+                            <input type="text" value="${result.markdown}" readonly>
+                            <button class="copy-all-btn" data-link="${result.markdown}">复制</button>
+                        </div>
+                        <div class="link-row">
+                            <span class="link-label">HTML:</span>
+                            <input type="text" value="${result.html}" readonly>
+                            <button class="copy-all-btn" data-link="${result.html}">复制</button>
+                        </div>
+                        <div class="link-row">
+                            <span class="link-label">BBCode:</span>
+                            <input type="text" value="${result.bbcode}" readonly>
+                            <button class="copy-all-btn" data-link="${result.bbcode}">复制</button>
+                        </div>
                     </div>
                 `;
                 allLinksContainer.appendChild(linkItem);
