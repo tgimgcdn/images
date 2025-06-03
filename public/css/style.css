@@ -86,6 +86,83 @@ h1 {
     background-color: rgba(33, 150, 243, 0.1);
 }
 
+.drop-zone.disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    position: relative;
+    border-color: #ff6b6b;
+    background-color: #fff5f5;
+}
+
+.disabled-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 107, 107, 0.3);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    border-radius: 8px;
+    backdrop-filter: blur(2px);
+    pointer-events: all;
+}
+
+.disabled-message {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 20px 40px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    border: 1px solid #ff6b6b;
+    color: #ff3e3e;
+}
+
+.disabled-message i {
+    font-size: 40px;
+    margin-bottom: 10px;
+    color: #ff6b6b;
+}
+
+.disabled-message p {
+    margin: 5px 0;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.disabled-message .sub-message {
+    font-size: 14px;
+    color: #666;
+    font-weight: normal;
+}
+
+.warning-message {
+    background-color: #fff8e1;
+    color: #ff8800;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin: 10px 0;
+    font-size: 14px;
+    border-left: 4px solid #ff8800;
+    display: flex;
+    align-items: center;
+}
+
+.warning-message i {
+    margin-right: 8px;
+    font-size: 16px;
+}
+
+.upload-btn.disabled {
+    background-color: #ccc;
+    border-color: #aaa;
+    color: #888;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .upload-content {
     display: flex;
     flex-direction: column;
@@ -236,40 +313,44 @@ h1 {
 
 .toast {
     position: fixed;
-    top: 20px;
-    right: 20px;
-    min-width: 300px;
-    max-width: 80%;
-    padding: 15px 20px;
-    border-radius: 5px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    z-index: 9999;
-    font-size: 14px;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #ff3e3e;
     color: white;
-    animation: slideIn 0.3s ease;
-    transition: opacity 0.3s;
-    cursor: pointer;
+    padding: 12px 25px;
+    padding-right: 30px;
+    border-radius: 5px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
     display: none;
+    max-width: 80%;
+    word-wrap: break-word;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-left: 5px solid #d32f2f;
+    position: relative;
 }
 
-#toast.info {
-    background-color: #3498db;
-    border-left: 5px solid #2980b9;
+.toast.success {
+    background-color: #4CAF50;
+    border-left: 5px solid #388E3C;
 }
 
-#toast.success {
-    background-color: #27ae60;
-    border-left: 5px solid #2ecc71;
+.toast.error {
+    background-color: #ff3e3e;
+    border-left: 5px solid #d32f2f;
 }
 
-#toast.warning {
-    background-color: #f39c12;
-    border-left: 5px solid #d35400;
+.toast.info {
+    background-color: #2196F3;
+    border-left: 5px solid #1976D2;
 }
 
-#toast.error {
-    background-color: #e74c3c;
-    border-left: 5px solid #c0392b;
+.toast.show {
+    display: block;
+    opacity: 1;
 }
 
 .toast-title {
@@ -467,14 +548,83 @@ footer {
 /* 添加关闭按钮样式 */
 .notification-close {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    font-size: 18px;
-    color: white;
-    opacity: 0.7;
+    top: 5px;
+    right: 8px;
+    font-size: 16px;
+    font-weight: bold;
     cursor: pointer;
+    color: rgba(255, 255, 255, 0.8);
+    transition: color 0.2s;
 }
 
 .notification-close:hover {
-    opacity: 1;
+    color: white;
+}
+
+/* Toast 标题和详情样式 */
+.toast-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.toast-details {
+    font-size: 0.9em;
+    opacity: 0.9;
+}
+
+/* 为Toast添加图标间距 */
+.toast i {
+    margin-right: 8px;
+}
+
+/* 修正notification-close在toast中的定位 */
+.toast .notification-close {
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.8);
+    transition: color 0.2s;
+}
+
+/* 确保禁用覆盖层完全覆盖上传区域 */
+.disabled-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 107, 107, 0.3);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100; /* 更高的z-index确保它覆盖所有内容 */
+    border-radius: 8px;
+    backdrop-filter: blur(2px);
+    pointer-events: all; /* 确保它能拦截所有点击事件 */
+}
+
+/* 修正toast样式，确保它在显示时更加明显 */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #ff3e3e;
+    color: white;
+    padding: 12px 25px;
+    padding-right: 30px; /* 为关闭按钮留出空间 */
+    border-radius: 5px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    display: none;
+    max-width: 80%;
+    word-wrap: break-word;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-left: 5px solid #d32f2f;
+    position: relative; /* 确保关闭按钮正确定位 */
 } 
