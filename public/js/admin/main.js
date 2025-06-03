@@ -879,19 +879,23 @@ async function batchDeleteImages() {
             // 逐批处理
             for (let i = 0; i < batches.length; i++) {
                 const batchIds = batches[i];
+                const isLastBatch = i === batches.length - 1; // 判断是否为最后一批
                 
                 // 显示当前处理批次进度
                 showNotification(`正在处理第${i + 1}/${batches.length}批，共${batchIds.length}张图片...`, 'info', 2000);
                 
                 console.log(`处理第${i + 1}/${batches.length}批，ID:`, batchIds);
                 
-                // 发送当前批次请求
+                // 发送当前批次请求，除了最后一批，其他都跳过部署
                 const response = await safeApiCall('/api/images/batch-delete', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ imageIds: batchIds }),
+                    body: JSON.stringify({ 
+                        imageIds: batchIds,
+                        skipDeploy: !isLastBatch // 除了最后一批都跳过部署
+                    }),
                     timeout: 30000 // 30秒超时，对于6张图片应该足够
                 });
                 
