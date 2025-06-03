@@ -19,9 +19,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     function initUpload() {
         // 点击上传按钮触发文件选择
         uploadBtn.addEventListener('click', (e) => {
-            // 检查是否禁用了上传
+            // 检查是否禁用了上传，但跳过覆盖层的提示
             if (uploadBtn.disabled || dropZone.classList.contains('disabled')) {
-                showToast('游客上传已禁用，请登录后再试', 'error');
+                // 不显示提示，由覆盖层本身提供足够的视觉反馈
                 return;
             }
             e.stopPropagation();
@@ -30,9 +30,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 点击上传区域触发文件选择
         dropZone.addEventListener('click', (e) => {
+            // 检查是否是覆盖层或其子元素被点击
+            if (e.target.closest('.disabled-overlay')) {
+                return; // 如果点击的是覆盖层，不做任何处理
+            }
+            
             // 检查是否禁用了上传
             if (dropZone.classList.contains('disabled')) {
-                showToast('游客上传已禁用，请登录后再试', 'error');
+                // 不显示提示，由覆盖层本身提供足够的视觉反馈
                 return;
             }
             
@@ -46,7 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         fileInput.addEventListener('change', (e) => {
             // 检查是否禁用了上传
             if (dropZone.classList.contains('disabled')) {
-                showToast('游客上传已禁用，请登录后再试', 'error');
+                // 不显示提示，这里一般不会被触发，因为按钮已被禁用
                 return;
             }
             handleFiles(e.target.files);
@@ -73,7 +78,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             // 检查是否禁用了上传
             if (dropZone.classList.contains('disabled')) {
-                showToast('游客上传已禁用，请登录后再试', 'error');
+                // 不显示提示，由覆盖层本身提供足够的视觉反馈
                 return;
             }
             dropZone.classList.remove('dragover');
@@ -84,7 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.addEventListener('paste', (e) => {
             // 检查是否禁用了上传
             if (dropZone.classList.contains('disabled')) {
-                showToast('游客上传已禁用，请登录后再试', 'error');
+                // 不显示提示，上传已禁用的视觉反馈已足够
                 return;
             }
             
@@ -112,7 +117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function handleFiles(files) {
         // 确认游客上传权限
         if (document.getElementById('dropZone').classList.contains('disabled')) {
-            showToast('游客上传已禁用，请登录后再试', 'error');
+            // 不显示提示，由覆盖层本身提供足够的视觉反馈
             return;
         }
 
@@ -179,7 +184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function uploadFiles(files) {
         // 再次确认游客上传权限
         if (document.getElementById('dropZone').classList.contains('disabled')) {
-            showToast('游客上传已禁用，请登录后再试', 'error');
+            // 不显示提示，由覆盖层本身提供足够的视觉反馈
             return;
         }
 
@@ -715,6 +720,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
         `;
         
+        // 为覆盖层添加点击事件，阻止事件冒泡
+        overlay.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        });
+        
         // 确保只添加一个覆盖层
         const existingOverlay = dropZone.querySelector('.disabled-overlay');
         if (!existingOverlay) {
@@ -727,7 +739,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (fileList) fileList.remove();
         if (confirmBtn) confirmBtn.remove();
         
-        // 显示一个明显的提示
+        // 显示一个明显的提示，但只显示一次
         showToast(message, 'warning', 8000);
     }
     
