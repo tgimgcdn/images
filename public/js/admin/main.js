@@ -832,19 +832,13 @@ async function deleteImage(id) {
             // 更新仪表盘统计数据
             await updateDashboardStats();
             
-            // 如果所有图片都被删除了，显示无图片提示
-            if (document.querySelectorAll('.image-card').length === 0) {
-                imageGrid.innerHTML = '<div class="no-images">暂无图片</div>';
-                const paginationContainer = document.getElementById('pagination');
-                if (paginationContainer) {
-                    paginationContainer.innerHTML = '';
-                }
-            }
+            // 检查并加载更多图片
+            await checkAndLoadMoreImages();
         } else {
             console.error('删除图片失败:', response.error);
             showNotification(`删除图片失败: ${response.error || '未知错误'}`, 'error');
-                }
-            } catch (error) {
+        }
+    } catch (error) {
         console.error('删除图片时出错:', error);
         showNotification('删除图片失败: ' + error.message, 'error');
     }
@@ -865,68 +859,131 @@ async function batchDeleteImages() {
             batchDeleteButton.disabled = true;
             batchDeleteButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 删除中...';
             
-            // 逐个删除图片
-            let successCount = 0;
-            let failCount = 0;
+            // 使用新的批量删除API
+            const response = await safeApiCall('/api/images/batch-delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ imageIds })
+            });
             
-            for (const id of imageIds) {
-                try {
-                    const response = await safeApiCall(`/api/images/${id}`, {
-                        method: 'DELETE'
-                    });
-                    
-                    // 修复响应判断逻辑
-                    if (!response.error) {  // 改为判断是否有error字段，而不是判断ok属性
-                        successCount++;
-                        // 从DOM中移除对应的图片卡片
+            if (!response.error) {
+                const successCount = response.results?.success?.length || 0;
+                const failCount = response.results?.failed?.length || 0;
+                
+                // 从DOM中移除成功删除的图片卡片
+                if (successCount > 0 && response.results?.success) {
+                    response.results.success.forEach(id => {
                         const card = document.querySelector(`.image-card[data-id="${id}"]`);
                         if (card) {
                             card.remove();
                         }
-                    } else {
-                        failCount++;
-                        console.error(`删除图片 ${id} 失败:`, response.error);
-                    }
-                } catch (err) {
-                    failCount++;
-                    console.error(`删除图片 ${id} 出错:`, err);
+                    });
                 }
-            }
-            
-            // 更新仪表盘统计数据
-            await updateDashboardStats();
-            
-            // 重置全选状态
-            if (selectAllCheckbox) {
-                selectAllCheckbox.checked = false;
-            }
-            
-            // 如果所有图片都被删除了，显示无图片提示
-            if (document.querySelectorAll('.image-card').length === 0) {
-                imageGrid.innerHTML = '<div class="no-images">暂无图片</div>';
-                const paginationContainer = document.getElementById('pagination');
-                if (paginationContainer) {
-                    paginationContainer.innerHTML = '';
+                
+                // 更新仪表盘统计数据
+                await updateDashboardStats();
+                
+                // 重置全选状态
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = false;
                 }
+                
+                // 如果当前页图片不足，尝试加载更多图片填充
+                await checkAndLoadMoreImages();
+                
+                // 显示结果
+                let message = '';
+                if (successCount > 0) {
+                    message += `成功删除 ${successCount} 张图片。`;
+                }
+                if (failCount > 0) {
+                    message += `${failCount} 张图片删除失败。`;
+                }
+                
+                showNotification(message, successCount > 0 ? 'success' : 'error');
+            } else {
+                console.error('批量删除失败:', response.error);
+                showNotification('批量删除失败: ' + (response.error || '未知错误'), 'error');
             }
-            
-            // 显示结果
-            let message = '';
-            if (successCount > 0) {
-                message += `成功删除 ${successCount} 张图片。`;
-            }
-            if (failCount > 0) {
-                message += `${failCount} 张图片删除失败。`;
-            }
-            
-            showNotification(message, successCount > 0 ? 'success' : 'error');
-    } catch (error) {
+        } catch (error) {
             console.error('批量删除图片失败:', error);
             showNotification('批量删除操作失败: ' + error.message, 'error');
         } finally {
             batchDeleteButton.disabled = false;
             batchDeleteButton.innerHTML = '<i class="fas fa-trash"></i> 批量删除';
             updateBatchButtonsState();
+        }
+    }
+}
+
+// 检查当前页图片数量并加载更多图片
+async function checkAndLoadMoreImages() {
+    const currentImageCards = document.querySelectorAll('.image-card');
+    const currentCount = currentImageCards.length;
+    
+    // 如果当前页面没有图片，但可能还有更多页面
+    if (currentCount === 0) {
+        // 先检查是否有更多页面
+        if (currentPage < totalPages) {
+            // 当前页已经空了，加载下一页
+            loadImages(currentPage);
+        } else if (currentPage > 1) {
+            // 如果是最后一页且为空，加载前一页
+            loadImages(currentPage - 1);
+        } else {
+            // 如果只有一页且为空，显示无图片提示
+            imageGrid.innerHTML = '<div class="no-images">暂无图片</div>';
+            const paginationContainer = document.getElementById('pagination');
+            if (paginationContainer) {
+                paginationContainer.innerHTML = '';
+            }
+        }
+        return;
+    }
+    
+    // 如果当前页图片数量少于一页的容量（通常是36张），且还有更多页面
+    if (currentCount < 36 && currentPage < totalPages) {
+        // 构建加载下一页图片的请求
+        const searchInput = document.getElementById('searchInput');
+        const search = searchInput ? searchInput.value.trim() : '';
+        
+        let url = `/api/images?page=${currentPage + 1}&limit=${36 - currentCount}`;
+        if (search) {
+            url += `&search=${encodeURIComponent(search)}`;
+        }
+        if (currentSort) {
+            url += `&sort=${currentSort}`;
+        }
+        
+        // 加载下一页的部分图片
+        const data = await safeApiCall(url);
+        
+        if (!data.error && data.images && data.images.length > 0) {
+            // 添加新图片到当前页面
+            data.images.forEach(image => {
+                const normalizedImage = {
+                    id: image.id,
+                    filename: image.name || image.filename,
+                    url: image.url,
+                    thumbnail_url: image.thumbnail_url || image.url,
+                    size: image.size,
+                    type: image.type,
+                    views: image.views || 0,
+                    created_at: image.upload_time || image.created_at,
+                    sha: image.sha || ''
+                };
+                
+                const card = createImageCard(normalizedImage);
+                imageGrid.appendChild(card);
+            });
+            
+            // 更新分页信息，当前页面的总数可能减少了
+            if (data.total_pages < totalPages) {
+                totalPages = data.total_pages;
+                setupPagination(data.total, currentPage, totalPages);
+            }
         }
     }
 }
@@ -1067,6 +1124,10 @@ async function loadImages(page = 1, search = '') {
             throw new Error(`Failed to load images: ${data.error}`);
         }
         
+        // 更新全局分页变量
+        currentPage = data.page || page;
+        totalPages = data.total_pages || Math.ceil(data.total / 36);
+        
         // 清除当前显示
         imageGrid.innerHTML = '';
         
@@ -1098,7 +1159,7 @@ async function loadImages(page = 1, search = '') {
             updateBatchButtonsState();
             
             // 设置分页
-            setupPagination(data.total, data.page, data.total_pages || Math.ceil(data.total / 36));
+            setupPagination(data.total, currentPage, totalPages);
         } else {
             // 没有图片时显示提示
             if (search) {
