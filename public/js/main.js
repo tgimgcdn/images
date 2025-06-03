@@ -652,15 +652,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const { allowGuestUpload } = data.data;
                     
                     if (!allowGuestUpload) {
-                        // 禁用所有上传功能
-                        disableUpload('游客上传当前已禁用，请联系管理员或登录后再试。');
+                        // 禁用所有上传功能，不传递消息参数
+                        disableUpload();
                         return false;
                     }
                 }
             } else {
                 // 无法获取设置，为安全起见，禁止上传
                 console.warn('无法获取游客上传设置，默认禁止上传');
-                disableUpload('无法获取上传权限设置，请刷新页面或联系管理员。');
+                disableUpload();
                 return false;
             }
             
@@ -668,30 +668,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error) {
             console.error('检查游客上传设置失败:', error);
             // 出错时为安全起见禁止上传
-            disableUpload('检查上传权限失败，请刷新页面或联系管理员。');
+            disableUpload();
             return false;
         }
     }
     
     // 禁用上传功能
-    function disableUpload(message) {
+    function disableUpload() {
         // 禁用上传按钮
         uploadBtn.disabled = true;
         uploadBtn.classList.add('disabled');
         
-        // 创建并显示警告消息
-        const warningMessage = document.createElement('div');
-        warningMessage.className = 'warning-message';
-        warningMessage.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
-        
-        // 移除现有的警告消息
-        const existingWarning = document.querySelector('.warning-message');
-        if (existingWarning) {
-            existingWarning.remove();
-        }
-        
-        // 添加警告消息
-        uploadContainer.appendChild(warningMessage);
+        // 不再创建和显示警告消息
         
         // 阻止所有拖放相关事件
         const preventDrag = (e) => {
@@ -738,8 +726,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const confirmBtn = document.querySelector('.confirm-upload-btn');
         if (fileList) fileList.remove();
         if (confirmBtn) confirmBtn.remove();
-        
-        // 不再显示Toast提示
     }
     
     // 初始化
