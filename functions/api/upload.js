@@ -164,6 +164,8 @@ export async function onRequest(context) {
       const file = formData.get('file');
       const skipDeploy = formData.get('skipDeploy') === 'true';
       
+      console.log(`接收到直接上传请求: 文件=${file.name}, 大小=${file.size}字节, 是否跳过部署=${skipDeploy}`);
+      
       if (!file) {
         return new Response(JSON.stringify({
           success: false,
@@ -297,7 +299,7 @@ export async function onRequest(context) {
           console.error('图片上传后部署失败:', deployResult.error);
         }
       } else {
-        console.log('根据请求参数跳过触发部署');
+        console.log('根据请求参数跳过触发部署，这不是最后一个文件');
       }
       
       // 返回链接信息
@@ -553,6 +555,8 @@ export async function onRequest(context) {
       const requestData = await request.json();
       const { sessionId, skipDeploy } = requestData;
       
+      console.log(`接收到完成上传请求: 会话ID=${sessionId}, 是否跳过部署=${skipDeploy}`);
+      
       // 验证参数
       if (!sessionId) {
         return new Response(JSON.stringify({
@@ -729,7 +733,7 @@ export async function onRequest(context) {
       // 只有在不跳过部署的情况下才触发部署钩子
       if (!skipDeploy) {
         // GitHub API已经确认文件上传成功，可以立即触发部署
-        console.log('GitHub已确认文件上传成功，触发Cloudflare Pages部署钩子');
+        console.log('GitHub已确认文件上传成功，触发Cloudflare Pages部署钩子，这是最后一个文件');
         const deployResult = await triggerDeployHook(env);
         if (deployResult.success) {
           console.log('图片上传后部署已成功触发');
@@ -737,7 +741,7 @@ export async function onRequest(context) {
           console.error('图片上传后部署失败:', deployResult.error);
         }
       } else {
-        console.log('根据请求参数跳过触发部署');
+        console.log('根据请求参数跳过触发部署，这不是最后一个文件');
       }
       
       // 返回链接信息
