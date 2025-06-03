@@ -1,3 +1,52 @@
+// 保存原始控制台方法的引用
+const originalConsole = {
+    log: console.log,
+    info: console.info,
+    warn: console.warn,
+    error: console.error,
+    debug: console.debug
+};
+
+// 创建自定义控制台处理器
+function setupConsoleHandling() {
+    // 检查调试模式
+    const isDebugMode = localStorage.getItem('debugMode') === 'true' || 
+                       new URLSearchParams(window.location.search).has('debug');
+    
+    // 重写控制台方法
+    console.log = function(...args) {
+        if (isDebugMode) {
+            originalConsole.log.apply(console, args);
+        }
+    };
+    
+    console.info = function(...args) {
+        if (isDebugMode) {
+            originalConsole.info.apply(console, args);
+        }
+    };
+    
+    console.warn = function(...args) {
+        if (isDebugMode) {
+            originalConsole.warn.apply(console, args);
+        }
+    };
+    
+    console.debug = function(...args) {
+        if (isDebugMode) {
+            originalConsole.debug.apply(console, args);
+        }
+    };
+    
+    // 错误日志始终保留，不受调试模式影响
+    console.error = function(...args) {
+        originalConsole.error.apply(console, args);
+    };
+}
+
+// 初始化控制台处理
+setupConsoleHandling();
+
 document.addEventListener('DOMContentLoaded', async () => {
     const loginForm = document.getElementById('loginForm');
     const errorMessage = document.querySelector('.error-message');
