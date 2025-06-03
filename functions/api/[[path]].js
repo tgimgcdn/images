@@ -1416,6 +1416,107 @@ export async function onRequest(context) {
       }
     }
 
+    // 批量删除图片
+    if (path.toLowerCase() === 'images/batch-delete' && request.method === 'POST') {
+      try {
+        // 获取用户会话
+        const session = await checkSession(request, env);
+        if (!session) {
+          return jsonResponse({ error: '未授权访问' }, 401);
+        }
+        
+        // 解析请求体获取图片ID数组
+        const { imageIds } = await request.json();
+        
+        if (!Array.isArray(imageIds) || imageIds.length === 0) {
+          return jsonResponse({ error: '未提供有效的图片ID列表' }, 400);
+        }
+        
+        console.log(`批量删除 ${imageIds.length} 张图片`);
+        
+        // 初始化结果计数
+        const results = {
+          success: [],
+          failed: []
+        };
+        
+        // 使用GitHub API删除文件
+        const octokit = new Octokit({
+          auth: env.GITHUB_TOKEN
+        });
+        
+        // 先获取所有要删除的图片信息
+        const images = [];
+        for (const id of imageIds) {
+          try {
+            const image = await env.DB.prepare(`
+              SELECT id, filename, github_path, sha 
+              FROM images 
+              WHERE id = ?
+            `).bind(id).first();
+            
+            if (image) {
+              images.push(image);
+            } else {
+              results.failed.push({
+                id,
+                error: '图片不存在'
+              });
+            }
+          } catch (error) {
+            console.error(`获取图片 ${id} 信息失败:`, error);
+            results.failed.push({
+              id,
+              error: '获取图片信息失败'
+            });
+          }
+        }
+        
+        // 批量删除GitHub上的文件
+        for (const image of images) {
+          try {
+            // 从GitHub仓库删除文件
+            await octokit.rest.repos.deleteFile({
+              owner: env.GITHUB_OWNER,
+              repo: env.GITHUB_REPO,
+              path: image.github_path,
+              message: `Delete ${image.filename}`,
+              sha: image.sha,
+              branch: 'main'
+            });
+            
+            // 从数据库删除记录
+            await env.DB.prepare(`
+              DELETE FROM images 
+              WHERE id = ?
+            `).bind(image.id).run();
+            
+            results.success.push(image.id);
+            console.log(`成功删除图片: ${image.filename}`);
+          } catch (error) {
+            console.error(`删除图片 ${image.id} 失败:`, error);
+            results.failed.push({
+              id: image.id,
+              error: error.message || '删除失败'
+            });
+          }
+        }
+        
+        return jsonResponse({
+          success: true,
+          message: `成功删除 ${results.success.length} 张图片，失败 ${results.failed.length} 张`,
+          results
+        });
+      } catch (error) {
+        console.error('批量删除图片时出错:', error);
+        return jsonResponse({
+          success: false,
+          error: '批量删除图片失败',
+          message: error.message
+        }, 500);
+      }
+    }
+
     // 如果没有匹配的路由，返回 404
     console.log('未找到匹配的路由:', path);
     return new Response(JSON.stringify({
