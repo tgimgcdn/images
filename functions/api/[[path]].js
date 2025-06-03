@@ -1602,12 +1602,12 @@ export async function onRequest(context) {
         // 批量删除GitHub上的文件
         for (const image of images) {
           try {
-            // 从GitHub仓库删除文件
+            // 从GitHub仓库删除文件，指定参数禁止自动部署
             await octokit.rest.repos.deleteFile({
               owner: env.GITHUB_OWNER,
               repo: env.GITHUB_REPO,
               path: image.github_path,
-              message: `Delete ${image.filename}`,
+              message: `Delete ${image.filename} [skip ci]`, // 添加[skip ci]标记，避免自动部署
               sha: image.sha,
               branch: 'main'
             });
@@ -1629,8 +1629,9 @@ export async function onRequest(context) {
           }
         }
         
-        // 触发Cloudflare Pages部署钩子
+        // 触发Cloudflare Pages部署钩子 - 仅在所有删除操作完成后触发一次
         if (results.success.length > 0) {
+          console.log(`所有删除操作已完成(成功: ${results.success.length}, 失败: ${results.failed.length})，现在触发一次部署`);
           const deployResult = await triggerDeployHook(env);
           if (deployResult.success) {
             console.log('批量删除后部署已成功触发');
