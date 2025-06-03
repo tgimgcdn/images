@@ -739,8 +739,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (fileList) fileList.remove();
         if (confirmBtn) confirmBtn.remove();
         
-        // 显示一个明显的提示，但只显示一次
-        showToast(message, 'warning', 8000);
+        // 不再显示Toast提示
     }
     
     // 初始化
