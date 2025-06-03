@@ -1477,7 +1477,7 @@ export async function onRequest(context) {
     }
 
     // 批量删除图片
-    if ((path.toLowerCase() === 'images/batch-delete' || path.toLowerCase() === '/images/batch-delete') && request.method === 'POST') {
+    if (path.toLowerCase() === 'images/batch-delete' && request.method === 'POST') {
       try {
         console.log('处理批量删除请求，路径:', path);
         
