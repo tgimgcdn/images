@@ -859,14 +859,20 @@ async function batchDeleteImages() {
             batchDeleteButton.disabled = true;
             batchDeleteButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 删除中...';
             
+            console.log('准备批量删除图片:', imageIds);
+            
             // 使用新的批量删除API
             const response = await safeApiCall('/api/images/batch-delete', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ imageIds })
+                body: JSON.stringify({ imageIds }),
+                // 增加超时时间，批量操作可能需要更长时间
+                timeout: 30000
             });
+            
+            console.log('批量删除响应:', response);
             
             if (!response.error) {
                 const successCount = response.results?.success?.length || 0;
