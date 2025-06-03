@@ -698,10 +698,21 @@ export async function onRequest(context) {
             errorMessage = `上传失败: ${error.message}`;
           }
         }
-        
+
         return new Response(JSON.stringify({ 
+          success: false,
           error: errorMessage,
-          details: error.message
+          message: error.message,
+          details: {
+            stack: error.stack,
+            env: {
+              hasGithubToken: !!env.GITHUB_TOKEN,
+              hasGithubOwner: !!env.GITHUB_OWNER,
+              hasGithubRepo: !!env.GITHUB_REPO,
+              hasSiteUrl: !!env.SITE_URL,
+              hasDB: !!env.DB
+            }
+          }
         }), {
           status: 500,
           headers: {
