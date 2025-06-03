@@ -163,6 +163,35 @@ export async function onRequest(context) {
       
       console.log(`后台直接上传文件到GitHub: ${filePath}`);
       
+      // 检查文件是否已存在
+      try {
+        const fileExists = await octokit.rest.repos.getContent({
+          owner: env.GITHUB_OWNER,
+          repo: env.GITHUB_REPO,
+          path: filePath,
+          ref: 'main'
+        });
+        
+        // 如果没有抛出错误，说明文件存在
+        return new Response(JSON.stringify({
+          success: false,
+          error: `文件 "${fileName}" 已存在，请重命名后重试`,
+          details: 'File already exists'
+        }), {
+          status: 409, // 明确返回409冲突状态码
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } catch (existingFileError) {
+        // 如果是404错误，说明文件不存在，可以继续上传
+        if (existingFileError.status !== 404) {
+          // 如果是其他错误，记录下来，但继续尝试上传
+          console.warn('检查文件是否存在时出错:', existingFileError);
+        }
+      }
+      
       // 上传到GitHub
       const response = await octokit.rest.repos.createOrUpdateFileContents({
         owner: env.GITHUB_OWNER,
@@ -227,6 +256,43 @@ export async function onRequest(context) {
       });
     } catch (error) {
       console.error('直接上传失败:', error);
+      
+      // 处理特定类型的错误
+      if (error.message && error.message.includes('already exists')) {
+        // 文件已存在冲突
+        return new Response(JSON.stringify({
+          success: false,
+          error: `文件 "${file.name}" 已存在，请重命名后重试`,
+          details: 'File already exists'
+        }), {
+          status: 409, // 明确返回409冲突状态码
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } else if (error.status === 403 || error.status === 401) {
+        // 权限不足
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'GitHub授权失败，请检查Token是否正确',
+          message: error.message,
+          details: {
+            stack: error.stack,
+            env: {
+              hasToken: !!env.GITHUB_TOKEN
+            }
+          }
+        }), {
+          status: error.status,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      
+      // 其他错误
       return new Response(JSON.stringify({
         success: false,
         error: '上传失败',
@@ -518,6 +584,40 @@ export async function onRequest(context) {
       
       console.log(`准备上传文件到GitHub: ${filePath}`);
       
+      // 检查文件是否已存在
+      try {
+        const fileExists = await octokit.rest.repos.getContent({
+          owner: env.GITHUB_OWNER,
+          repo: env.GITHUB_REPO,
+          path: filePath,
+          ref: 'main'
+        });
+        
+        // 如果没有抛出错误，说明文件存在
+        // 清理会话数据
+        uploadSessions.delete(sessionId);
+        sessionChunks.delete(sessionId);
+        sessionExpiry.delete(sessionId);
+        
+        return new Response(JSON.stringify({
+          success: false,
+          error: `文件 "${uploadFileName}" 已存在，请重命名后重试`,
+          details: 'File already exists'
+        }), {
+          status: 409, // 明确返回409冲突状态码
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } catch (existingFileError) {
+        // 如果是404错误，说明文件不存在，可以继续上传
+        if (existingFileError.status !== 404) {
+          // 如果是其他错误，记录下来，但继续尝试上传
+          console.warn('检查文件是否存在时出错:', existingFileError);
+        }
+      }
+      
       // 上传到GitHub
       const response = await octokit.rest.repos.createOrUpdateFileContents({
         owner: env.GITHUB_OWNER,
@@ -564,11 +664,6 @@ export async function onRequest(context) {
         // 继续执行，不因为数据库错误而中断响应
       }
       
-      // 清理会话数据
-      uploadSessions.delete(sessionId);
-      sessionChunks.delete(sessionId);
-      sessionExpiry.delete(sessionId);
-      
       // 返回链接信息
       const imageUrl = `${env.SITE_URL}/images/${datePath}/${uploadFileName}`;
       return new Response(JSON.stringify({
@@ -587,6 +682,50 @@ export async function onRequest(context) {
       });
     } catch (error) {
       console.error('完成上传失败:', error);
+      
+      // 清理会话数据
+      if (sessionId) {
+        uploadSessions.delete(sessionId);
+        sessionChunks.delete(sessionId);
+        sessionExpiry.delete(sessionId);
+      }
+      
+      // 处理特定类型的错误
+      if (error.message && error.message.includes('already exists')) {
+        // 文件已存在冲突
+        return new Response(JSON.stringify({
+          success: false,
+          error: `文件 "${uploadFileName}" 已存在，请重命名后重试`,
+          details: 'File already exists'
+        }), {
+          status: 409, // 明确返回409冲突状态码
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } else if (error.status === 403 || error.status === 401) {
+        // 权限不足
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'GitHub授权失败，请检查Token是否正确',
+          message: error.message,
+          details: {
+            stack: error.stack,
+            env: {
+              hasToken: !!env.GITHUB_TOKEN
+            }
+          }
+        }), {
+          status: error.status,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      
+      // 其他错误
       return new Response(JSON.stringify({
         success: false,
         error: '完成上传失败',
