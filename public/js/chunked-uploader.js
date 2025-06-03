@@ -247,9 +247,29 @@ class ChunkedUploader {
    * 处理错误
    */
   _handleError(error) {
-    this.error = error;
+    // 如果错误是从API返回的，保留详细信息
+    if (typeof error === 'object' && error.error && error.details) {
+      // 已经是有结构的错误对象，直接使用
+      this.error = error;
+    } else if (error instanceof Error) {
+      // 如果是标准Error对象，保留它
+      this.error = error;
+    } else if (typeof error === 'string') {
+      // 如果是字符串，转换为Error对象
+      this.error = new Error(error);
+    } else {
+      // 其他情况，创建一个新的Error对象
+      try {
+        const errorMessage = error.message || JSON.stringify(error) || '未知错误';
+        this.error = new Error(errorMessage);
+        this.error.details = error.details || JSON.stringify(error);
+      } catch (e) {
+        this.error = new Error('发生未知错误');
+      }
+    }
+    
     this._setStatus('error');
-    this.onError(error);
+    this.onError(this.error);
   }
   
   /**
