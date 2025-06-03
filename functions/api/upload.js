@@ -87,13 +87,13 @@ async function triggerDeployHook(env) {
 
   // 检查格式是否正确
   const deployHook = env.DEPLOY_HOOK.trim();
-  if (!deployHook.startsWith('@https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/')) {
-    console.error('DEPLOY_HOOK格式不正确，应以@https://api.cloudflare.com/开头');
+  if (!deployHook.startsWith('https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/')) {
+    console.error('DEPLOY_HOOK格式不正确，应以https://api.cloudflare.com/开头');
     return { success: false, error: 'DEPLOY_HOOK格式不正确' };
   }
 
-  // 提取真实URL
-  const deployUrl = deployHook.substring(1);
+  // 直接使用DEPLOY_HOOK的值
+  const deployUrl = deployHook;
   
   try {
     console.log('触发Cloudflare Pages部署...');
