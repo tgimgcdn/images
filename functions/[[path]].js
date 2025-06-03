@@ -244,4 +244,66 @@ app.route('/api', api);
 app.use('/*', serveStatic({ root: './public' }));
 
 // 导出处理函数
-export default app; 
+export default app;
+
+export async function onRequest(context) {
+  const { request, env } = context;
+  const url = new URL(request.url);
+  const path = url.pathname;
+  
+  // 检查是否是访问/images/路径
+  if (path.startsWith('/images/')) {
+    // 检查是否是尝试访问目录（末尾没有文件扩展名）
+    const hasFileExtension = /\.[a-zA-Z0-9]+$/.test(path);
+    
+    if (!hasFileExtension) {
+      // 尝试访问目录，返回403 Forbidden
+      return new Response('Forbidden: Directory listing not allowed', {
+        status: 403,
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+      });
+    } else {
+      // 尝试访问可能不存在的文件，返回404 Not Found
+      // 注意：正常情况下，存在的图片文件应该由CloudFlare Pages直接处理，而不会执行到这里
+      return new Response('Not Found: The requested image does not exist', {
+        status: 404,
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+      });
+    }
+  }
+  
+  // 对于非/images/路径，继续使用Hono框架处理请求
+  return app.fetch(request, env);
+}
+
+// 服务静态内容的函数
+function serveStatic(context) {
+  // 使用现有实现或返回index.html
+  const response = new Response(
+    `<!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>参界图床</title>
+      <link rel="stylesheet" href="/css/style.css">
+    </head>
+    <body>
+      <div class="container">
+        <h1>参界图床</h1>
+        <!-- 网站内容 -->
+      </div>
+    </body>
+    </html>`,
+    {
+      headers: {
+        'content-type': 'text/html;charset=UTF-8',
+      },
+    }
+  );
+  return response;
+} 
