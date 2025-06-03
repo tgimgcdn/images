@@ -1,6 +1,66 @@
 import { Octokit } from 'octokit';
 import bcrypt from 'bcryptjs';
 
+// CORS头
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// 生成JSON响应的帮助函数
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders
+    }
+  });
+}
+
+// 检查用户会话
+async function checkSession(request, env) {
+  // 从Cookie中获取会话ID
+  let sessionId = null;
+  const cookieHeader = request.headers.get('Cookie');
+  
+  if (cookieHeader) {
+    const cookies = cookieHeader.split(';');
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'session_id') {
+        sessionId = value;
+        break;
+      }
+    }
+  }
+  
+  if (!sessionId || !env.DB) {
+    console.log('未找到有效的会话ID或数据库未配置');
+    return null;
+  }
+  
+  try {
+    console.log('检查会话ID:', sessionId);
+    // 检查会话是否有效
+    const session = await env.DB.prepare(
+      'SELECT * FROM sessions WHERE id = ? AND expires_at > CURRENT_TIMESTAMP'
+    ).bind(sessionId).first();
+    
+    if (!session) {
+      console.log('会话不存在或已过期');
+      return null;
+    }
+    
+    console.log('会话有效，用户:', session.username);
+    return session;
+  } catch (error) {
+    console.error('验证用户会话状态失败:', error);
+    return null;
+  }
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -1417,22 +1477,35 @@ export async function onRequest(context) {
     }
 
     // 批量删除图片
-    if (path.toLowerCase() === 'images/batch-delete' && request.method === 'POST') {
+    if ((path.toLowerCase() === 'images/batch-delete' || path.toLowerCase() === '/images/batch-delete') && request.method === 'POST') {
       try {
+        console.log('处理批量删除请求，路径:', path);
+        
         // 获取用户会话
         const session = await checkSession(request, env);
         if (!session) {
           return jsonResponse({ error: '未授权访问' }, 401);
         }
         
-        // 解析请求体获取图片ID数组
-        const { imageIds } = await request.json();
+        // 安全解析请求体
+        let imageIds;
+        try {
+          const requestBody = await request.json();
+          console.log('解析请求体:', requestBody);
+          imageIds = requestBody.imageIds;
+        } catch (parseError) {
+          console.error('解析请求体失败:', parseError);
+          return jsonResponse({ 
+            error: '无法解析请求体', 
+            details: parseError.message 
+          }, 400);
+        }
         
         if (!Array.isArray(imageIds) || imageIds.length === 0) {
           return jsonResponse({ error: '未提供有效的图片ID列表' }, 400);
         }
         
-        console.log(`批量删除 ${imageIds.length} 张图片`);
+        console.log(`批量删除 ${imageIds.length} 张图片:`, imageIds);
         
         // 初始化结果计数
         const results = {
@@ -1512,7 +1585,8 @@ export async function onRequest(context) {
         return jsonResponse({
           success: false,
           error: '批量删除图片失败',
-          message: error.message
+          message: error.message,
+          stack: error.stack // 添加堆栈信息，帮助调试
         }, 500);
       }
     }
