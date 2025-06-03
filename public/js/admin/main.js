@@ -3,8 +3,100 @@ let currentPage = 1;
 let totalPages = 1;
 let currentSort = 'newest';
 let currentSearch = '';
-let isDebugMode = false; // 添加调试模式标志
+let isDebugMode = false; // 调试模式标志
 let allowedFileTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon']; // 默认允许的文件类型
+
+// 保存原始控制台方法的引用
+const originalConsole = {
+    log: console.log,
+    info: console.info,
+    warn: console.warn,
+    error: console.error,
+    debug: console.debug
+};
+
+// 创建自定义控制台处理器
+function setupConsoleHandling() {
+    // 检查调试模式
+    isDebugMode = localStorage.getItem('debugMode') === 'true' || 
+                  new URLSearchParams(window.location.search).has('debug');
+    
+    // 重写控制台方法
+    console.log = function(...args) {
+        if (isDebugMode) {
+            originalConsole.log.apply(console, args);
+        }
+    };
+    
+    console.info = function(...args) {
+        if (isDebugMode) {
+            originalConsole.info.apply(console, args);
+        }
+    };
+    
+    console.warn = function(...args) {
+        if (isDebugMode) {
+            originalConsole.warn.apply(console, args);
+        }
+    };
+    
+    console.debug = function(...args) {
+        if (isDebugMode) {
+            originalConsole.debug.apply(console, args);
+        }
+    };
+    
+    // 错误日志始终保留，不受调试模式影响
+    console.error = function(...args) {
+        originalConsole.error.apply(console, args);
+    };
+    
+    // 如果开启了调试模式，添加调试CSS类
+    if (isDebugMode) {
+        originalConsole.log('调试模式已启用');
+        document.body.classList.add('debug-mode');
+    }
+    
+    // 添加键盘快捷键(Alt+D)来切换调试模式
+    document.addEventListener('keydown', function(e) {
+        // Alt+D组合键
+        if (e.altKey && e.key === 'd') {
+            // 检查是否是管理页面
+            if (window.location.pathname.includes('/admin/')) {
+                e.preventDefault(); // 阻止默认行为
+                toggleDebugMode();
+                
+                // 更新调试按钮（如果存在）
+                const debugBtn = document.querySelector('.debug-toggle-btn');
+                if (debugBtn) {
+                    debugBtn.innerHTML = `<i class="fas fa-bug"></i> ${isDebugMode ? '关闭调试' : '开启调试'}`;
+                    debugBtn.title = isDebugMode ? '关闭调试模式' : '开启调试模式';
+                    debugBtn.style.backgroundColor = isDebugMode ? '#f44336' : '#4CAF50';
+                }
+            }
+        }
+    });
+}
+
+// 切换调试模式的函数
+function toggleDebugMode() {
+    isDebugMode = !isDebugMode;
+    localStorage.setItem('debugMode', isDebugMode);
+    
+    // 显示状态提示
+    showNotification(isDebugMode ? '调试模式已开启' : '调试模式已关闭', isDebugMode ? 'info' : 'success');
+    
+    // 如果启用了调试模式，输出一条消息确认
+    if (isDebugMode) {
+        originalConsole.log('调试模式已手动开启');
+        document.body.classList.add('debug-mode');
+    } else {
+        document.body.classList.remove('debug-mode');
+    }
+    
+    // 可选：刷新页面以确保所有组件都正确应用调试模式
+    // window.location.reload();
+}
 
 // 批量删除相关变量和函数
 let selectAllCheckbox;
@@ -14,17 +106,15 @@ let imageGrid; // 定义全局变量，用于引用图片网格
 // DOM 加载完成后执行
 document.addEventListener('DOMContentLoaded', () => {
     try {
+        // 设置控制台处理
+        setupConsoleHandling();
+        
         console.log('DOM加载完成，开始初始化');
         
         // 移动端设备优化
         optimizeForMobileDevices();
         
-        // 检查是否启用调试模式
-        isDebugMode = localStorage.getItem('debugMode') === 'true' || new URLSearchParams(window.location.search).has('debug');
-        if (isDebugMode) {
-            console.log('调试模式已启用');
-            document.body.classList.add('debug-mode');
-        }
+        // 注意：这里不再需要检查调试模式，因为setupConsoleHandling已经处理了
 
         // 获取图片网格和分页元素
         imageGrid = document.getElementById('imageGrid');
@@ -85,6 +175,9 @@ document.addEventListener('DOMContentLoaded', () => {
             loadAllowedFileTypes().catch(err => {
                 console.error('加载文件类型失败，使用默认值:', err);
             });
+            
+            // 添加调试模式切换按钮
+            addDebugModeToggle();
         }, 100);
 
         // 添加全屏预览容器
@@ -2258,3 +2351,67 @@ function optimizeForMobileDevices() {
         document.addEventListener('touchstart', function(){}, {passive: true});
     }
 } 
+
+// 添加调试模式切换按钮
+function addDebugModeToggle() {
+    // 检查是否是管理页面
+    if (!window.location.pathname.includes('/admin/')) {
+        return; // 只在管理页面显示
+    }
+    
+    // 创建调试按钮
+    const debugBtn = document.createElement('button');
+    debugBtn.className = 'debug-toggle-btn';
+    debugBtn.innerHTML = `<i class="fas fa-bug"></i> ${isDebugMode ? '关闭调试' : '开启调试'}`;
+    debugBtn.title = `${isDebugMode ? '关闭' : '开启'}调试模式 (快捷键: Alt+D)`;
+    
+    // 设置按钮样式，使其在页面顶部右侧显示
+    Object.assign(debugBtn.style, {
+        position: 'fixed',
+        top: '10px',
+        right: '10px',
+        zIndex: '1000',
+        padding: '6px 12px',
+        backgroundColor: isDebugMode ? '#f44336' : '#4CAF50',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '5px',
+        opacity: '0.8'
+    });
+    
+    // 添加鼠标悬停效果
+    debugBtn.addEventListener('mouseenter', () => {
+        debugBtn.style.opacity = '1';
+    });
+    
+    debugBtn.addEventListener('mouseleave', () => {
+        debugBtn.style.opacity = '0.8';
+    });
+    
+    // 添加点击事件
+    debugBtn.addEventListener('click', () => {
+        toggleDebugMode();
+        
+        // 更新按钮文本和样式
+        debugBtn.innerHTML = `<i class="fas fa-bug"></i> ${isDebugMode ? '关闭调试' : '开启调试'}`;
+        debugBtn.title = `${isDebugMode ? '关闭' : '开启'}调试模式 (快捷键: Alt+D)`;
+        debugBtn.style.backgroundColor = isDebugMode ? '#f44336' : '#4CAF50';
+    });
+    
+    // 添加到页面
+    document.body.appendChild(debugBtn);
+    
+    // 首次加载时，显示一个提示
+    if (!localStorage.getItem('debugTipShown')) {
+        setTimeout(() => {
+            showNotification('提示：您可以使用 Alt+D 快捷键切换调试模式', 'info', 8000);
+            localStorage.setItem('debugTipShown', 'true');
+        }, 2000);
+    }
+}
