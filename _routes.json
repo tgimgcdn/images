@@ -3,9 +3,7 @@
   "include": [
     "/*"
   ],
-  "exclude": [
-    "/images/*"
-  ],
+  "exclude": [],
   "routes": [
     {
       "pattern": "/api/upload*",
@@ -22,6 +20,10 @@
     {
       "pattern": "/admin/*",
       "script": "functions/admin/[[path]].js"
+    },
+    {
+      "pattern": "/images/*",
+      "script": "functions/[[path]].js"
     },
     {
       "pattern": "/*",
