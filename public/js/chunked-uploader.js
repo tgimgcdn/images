@@ -23,6 +23,9 @@ class ChunkedUploader {
     this.uploadSpeed = 0;
     this.remainingTime = 0;
     
+    // 是否跳过部署
+    this.skipDeploy = options.skipDeploy || false;
+    
     // 回调
     this.onProgress = options.onProgress || (() => {});
     this.onComplete = options.onComplete || (() => {});
@@ -207,7 +210,8 @@ class ChunkedUploader {
           sessionId: this.sessionId,
           fileName: this.fileName,
           fileSize: this.file.size,
-          mimeType: this.file.type
+          mimeType: this.file.type,
+          skipDeploy: this.skipDeploy
         })
       });
       
