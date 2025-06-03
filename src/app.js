@@ -183,13 +183,40 @@ api.post('/upload', async (c) => {
         const file = formData.get('file');
         
         if (!file) {
-            return c.json({ error: '未找到文件' }, 400);
+            return c.json({ 
+                success: false,
+                error: '未找到文件' 
+            }, 400);
         }
 
         // 初始化 Octokit
         const octokit = new Octokit({
             auth: c.env.GITHUB_TOKEN
         });
+        
+        // 检查文件是否已存在
+        const filePath = `images/${file.name}`;
+        try {
+            const existingFile = await octokit.rest.repos.getContent({
+                owner: c.env.GITHUB_OWNER,
+                repo: c.env.GITHUB_REPO,
+                path: filePath,
+                ref: 'main'
+            });
+            
+            // 如果没有抛出错误，说明文件存在
+            return c.json({ 
+                success: false,
+                error: `文件 "${file.name}" 已存在，请重命名后重试`,
+                details: 'File already exists'
+            }, 409);
+        } catch (existingFileError) {
+            // 如果是404错误，说明文件不存在，可以继续上传
+            if (existingFileError.status !== 404) {
+                // 如果是其他错误，记录下来，但继续尝试上传
+                console.warn('检查文件是否存在时出错:', existingFileError);
+            }
+        }
 
         // 上传到 GitHub
         const buffer = await file.arrayBuffer();
@@ -198,7 +225,7 @@ api.post('/upload', async (c) => {
         const response = await octokit.rest.repos.createOrUpdateFileContents({
             owner: c.env.GITHUB_OWNER,
             repo: c.env.GITHUB_REPO,
-            path: `images/${file.name}`,
+            path: filePath,
             message: `Upload ${file.name}`,
             content: content,
             branch: 'main'
@@ -212,7 +239,7 @@ api.post('/upload', async (c) => {
             file.name,
             file.size,
             file.type,
-            `images/${file.name}`,
+            filePath,
             response.data.content.sha,
             formatBeijingTimeString(new Date(Date.now() + 8 * 60 * 60 * 1000)),
             formatBeijingTimeString(new Date(Date.now() + 8 * 60 * 60 * 1000))
@@ -231,6 +258,23 @@ api.post('/upload', async (c) => {
         });
     } catch (error) {
         console.error('Upload error:', error);
+        
+        // 处理特定错误类型
+        if (error.message && error.message.includes('already exists')) {
+            return c.json({ 
+                success: false, 
+                error: `文件 "${file.name}" 已存在，请重命名后重试`,
+                details: 'File already exists'
+            }, 409);
+        } else if (error.status === 403 || error.status === 401) {
+            return c.json({ 
+                success: false, 
+                error: 'GitHub授权失败，请检查Token是否正确',
+                message: error.message
+            }, error.status);
+        }
+        
+        // 一般错误
         return c.json({ 
             success: false, 
             error: '上传失败', 
