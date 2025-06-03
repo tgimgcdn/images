@@ -543,18 +543,51 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
             toast.appendChild(closeButton);
         } else {
-            toast.textContent = message;
+            // 处理字符串消息
+            if (type === 'error' && !message.includes('<')) {
+                // 为普通错误消息添加图标
+                toast.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+            } else if (type === 'warning' && !message.includes('<')) {
+                // 为警告消息添加图标
+                toast.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
+            } else if (type === 'success' && !message.includes('<')) {
+                // 为成功消息添加图标
+                toast.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`;
+            } else {
+                // 如果消息已经包含HTML，直接使用
+                toast.innerHTML = message;
+            }
+            
+            // 为所有消息添加关闭按钮
+            const closeButton = document.createElement('span');
+            closeButton.className = 'notification-close';
+            closeButton.innerHTML = '&times;';
+            closeButton.onclick = function(e) {
+                e.stopPropagation();
+                toast.style.opacity = '0';
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                    toast.style.opacity = '1';
+                    toast.innerHTML = '';
+                }, 300);
+            };
+            toast.appendChild(closeButton);
         }
         
         // 显示提示
         toast.style.display = 'block';
-        toast.style.opacity = '1';
+        
+        // 确保DOM更新后设置不透明度以触发过渡动画
+        setTimeout(() => {
+            toast.classList.add('show');
+        }, 10);
         
         // 设置自动隐藏
         toast.timeoutId = setTimeout(() => {
-            toast.style.opacity = '0';
+            toast.classList.remove('show');
             setTimeout(() => {
                 toast.style.display = 'none';
+                toast.classList.remove('show');
                 if (message instanceof Error) {
                     toast.innerHTML = '';
                 }
@@ -564,7 +597,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 点击关闭
         toast.onclick = () => {
             clearTimeout(toast.timeoutId);
-            toast.style.opacity = '0';
+            toast.classList.remove('show');
             setTimeout(() => {
                 toast.style.display = 'none';
                 if (message instanceof Error) {
