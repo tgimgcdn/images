@@ -231,7 +231,21 @@ api.post('/upload', async (c) => {
         });
     } catch (error) {
         console.error('Upload error:', error);
-        return c.json({ error: '上传失败' }, 500);
+        return c.json({ 
+            success: false, 
+            error: '上传失败', 
+            message: error.message,
+            details: {
+                stack: error.stack,
+                env: {
+                    hasGithubToken: !!c.env.GITHUB_TOKEN,
+                    hasGithubOwner: !!c.env.GITHUB_OWNER,
+                    hasGithubRepo: !!c.env.GITHUB_REPO,
+                    hasSiteUrl: !!c.env.SITE_URL,
+                    hasDB: !!c.env.DB
+                }
+            }
+        }, 500);
     }
 });
 
