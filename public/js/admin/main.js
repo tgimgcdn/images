@@ -2035,14 +2035,18 @@ async function uploadSelectedFiles(files) {
     // 保持当前页面滚动位置
     const scrollPos = window.scrollY;
     
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const isLastFile = i === files.length - 1; // 检查是否是最后一个文件
+        const skipDeploy = !isLastFile; // 除了最后一个文件，其他都跳过部署
+        
         if (!file.type.startsWith('image/')) {
             showNotification('只能上传图片文件', 'error');
             continue;
         }
         
         try {
-            console.log(`开始上传文件: ${file.name}, 类型: ${file.type}, 大小: ${file.size} 字节`);
+            console.log(`开始上传文件: ${file.name}, 类型: ${file.type}, 大小: ${file.size} 字节, 是否跳过部署: ${skipDeploy}`);
             
             // 定义文件大小阈值，超过此值使用分块上传
             const CHUNK_SIZE_THRESHOLD = 5 * 1024 * 1024; // 5MB
@@ -2069,7 +2073,7 @@ async function uploadSelectedFiles(files) {
                         const speed = (uploadedBytes + progress.uploadedSize) / elapsedSeconds;
                         progressSpeed.textContent = formatFileSize(speed, 2) + '/s';
                     }
-                });
+                }, skipDeploy); // 传递skipDeploy参数
             } else {
                 // 使用普通上传方式
                 console.log(`使用普通上传方式`);
@@ -2091,7 +2095,7 @@ async function uploadSelectedFiles(files) {
                     const speed = (uploadedBytes + loaded) / elapsedSeconds;
                     progressSpeed.textContent = formatFileSize(speed, 2) + '/s';
                 }
-            });
+            }, skipDeploy); // 添加skipDeploy参数
             }
             
             uploadedCount++;
@@ -2155,11 +2159,12 @@ async function uploadSelectedFiles(files) {
 }
 
 // 使用XMLHttpRequest上传文件并显示进度
-function uploadFileWithProgress(file, onProgress) {
+function uploadFileWithProgress(file, onProgress, skipDeploy = false) {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('skipDeploy', skipDeploy ? 'true' : 'false');
         
         // 监听上传进度
         xhr.upload.addEventListener('progress', (e) => {
@@ -2174,7 +2179,7 @@ function uploadFileWithProgress(file, onProgress) {
                 try {
                     const response = JSON.parse(xhr.responseText);
                     resolve(response);
-    } catch (error) {
+                } catch (error) {
                     reject(new Error('解析响应失败: ' + error.message));
                 }
             } else {
@@ -2229,13 +2234,14 @@ function uploadFileWithProgress(file, onProgress) {
 }
 
 // 使用分块上传处理大文件
-function uploadLargeFileWithChunks(file, onProgress) {
+function uploadLargeFileWithChunks(file, onProgress, skipDeploy = false) {
     return new Promise((resolve, reject) => {
         try {
-            console.log(`初始化分块上传: ${file.name}`);
+            console.log(`初始化分块上传: ${file.name}, 是否跳过部署: ${skipDeploy}`);
             
             // 创建分块上传器
             const uploader = new ChunkedUploader(file, {
+                skipDeploy: skipDeploy, // 添加skipDeploy参数
                 // 进度更新回调
                 onProgress: (progressData) => {
                     if (onProgress) {
