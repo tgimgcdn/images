@@ -214,9 +214,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const CHUNK_SIZE_THRESHOLD = 5 * 1024 * 1024; // 5MB
 
         // 逐个上传文件
-        for (const file of files) {
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const isLastFile = i === files.length - 1; // 检查是否是最后一个文件
+            const skipDeploy = !isLastFile; // 除了最后一个文件，其他都跳过部署
+            
             try {
-                console.log(`开始上传文件: ${file.name}, 大小: ${file.size}`);
+                console.log(`开始上传文件: ${file.name}, 大小: ${file.size}, 是否跳过部署: ${skipDeploy}`);
                 
                 // 判断是否使用分块上传
                 if (file.size > CHUNK_SIZE_THRESHOLD) {
@@ -224,6 +228,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     
                     // 创建分块上传器
                     const uploader = new ChunkedUploader(file, {
+                        skipDeploy: skipDeploy, // 添加skipDeploy参数
                         // 进度更新回调
                         onProgress: (progressData) => {
                             // 计算总体进度 (已上传完成的文件 + 当前文件的进度)
@@ -283,7 +288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const speed = (uploadedBytes + loaded) / elapsedSeconds;
                             progressSpeed.textContent = formatSpeed(speed);
                         }
-                    });
+                    }, skipDeploy); // 传递skipDeploy参数
                     
                     uploadedCount++;
                     uploadedBytes += file.size;
@@ -312,11 +317,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 使用XMLHttpRequest上传小文件
-    function uploadFileWithXHR(file, onProgress) {
+    function uploadFileWithXHR(file, onProgress, skipDeploy) {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('skipDeploy', skipDeploy ? 'true' : 'false');
             
             // 监听上传进度
             xhr.upload.addEventListener('progress', (e) => {
