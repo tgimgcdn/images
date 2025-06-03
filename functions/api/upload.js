@@ -288,7 +288,8 @@ export async function onRequest(context) {
       
       // 只有在不跳过部署的情况下才触发部署钩子
       if (!skipDeploy) {
-        // 触发Cloudflare Pages部署钩子
+        // GitHub API已经确认文件上传成功，可以立即触发部署
+        console.log('GitHub已确认文件上传成功，触发Cloudflare Pages部署钩子');
         const deployResult = await triggerDeployHook(env);
         if (deployResult.success) {
           console.log('图片上传后部署已成功触发');
@@ -727,7 +728,8 @@ export async function onRequest(context) {
       
       // 只有在不跳过部署的情况下才触发部署钩子
       if (!skipDeploy) {
-        // 触发Cloudflare Pages部署钩子
+        // GitHub API已经确认文件上传成功，可以立即触发部署
+        console.log('GitHub已确认文件上传成功，触发Cloudflare Pages部署钩子');
         const deployResult = await triggerDeployHook(env);
         if (deployResult.success) {
           console.log('图片上传后部署已成功触发');
