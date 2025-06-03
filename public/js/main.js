@@ -19,12 +19,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     function initUpload() {
         // 点击上传按钮触发文件选择
         uploadBtn.addEventListener('click', (e) => {
+            // 检查是否禁用了上传
+            if (uploadBtn.disabled || dropZone.classList.contains('disabled')) {
+                showToast('游客上传已禁用，请登录后再试', 'error');
+                return;
+            }
             e.stopPropagation();
             fileInput.click();
         });
 
         // 点击上传区域触发文件选择
         dropZone.addEventListener('click', (e) => {
+            // 检查是否禁用了上传
+            if (dropZone.classList.contains('disabled')) {
+                showToast('游客上传已禁用，请登录后再试', 'error');
+                return;
+            }
+            
             if (e.target === uploadBtn || uploadBtn.contains(e.target)) {
                 return;
             }
@@ -33,27 +44,50 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 处理文件选择
         fileInput.addEventListener('change', (e) => {
+            // 检查是否禁用了上传
+            if (dropZone.classList.contains('disabled')) {
+                showToast('游客上传已禁用，请登录后再试', 'error');
+                return;
+            }
             handleFiles(e.target.files);
         });
 
         // 处理拖放
         dropZone.addEventListener('dragover', (e) => {
+            // 检查是否禁用了上传
+            if (dropZone.classList.contains('disabled')) {
+                e.preventDefault();
+                return;
+            }
             e.preventDefault();
             dropZone.classList.add('dragover');
         });
 
         dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
+            if (!dropZone.classList.contains('disabled')) {
+                dropZone.classList.remove('dragover');
+            }
         });
 
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
+            // 检查是否禁用了上传
+            if (dropZone.classList.contains('disabled')) {
+                showToast('游客上传已禁用，请登录后再试', 'error');
+                return;
+            }
             dropZone.classList.remove('dragover');
             handleFiles(e.dataTransfer.files);
         });
 
         // 处理粘贴
         document.addEventListener('paste', (e) => {
+            // 检查是否禁用了上传
+            if (dropZone.classList.contains('disabled')) {
+                showToast('游客上传已禁用，请登录后再试', 'error');
+                return;
+            }
+            
             const items = e.clipboardData.items;
             const files = [];
             
@@ -76,6 +110,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 处理文件
     function handleFiles(files) {
+        // 确认游客上传权限
+        if (document.getElementById('dropZone').classList.contains('disabled')) {
+            showToast('游客上传已禁用，请登录后再试', 'error');
+            return;
+        }
+
         // 清空之前的文件列表
         const existingFileList = document.querySelector('.file-list');
         if (existingFileList) {
@@ -137,6 +177,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 上传文件 - 使用分块上传
     async function uploadFiles(files) {
+        // 再次确认游客上传权限
+        if (document.getElementById('dropZone').classList.contains('disabled')) {
+            showToast('游客上传已禁用，请登录后再试', 'error');
+            return;
+        }
+
         const startTime = Date.now();
         let uploadedCount = 0;
         let uploadedBytes = 0;
@@ -568,27 +614,37 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const { allowGuestUpload } = data.data;
                     
                     if (!allowGuestUpload) {
+                        // 禁用所有上传功能
                         disableUpload('游客上传当前已禁用，请联系管理员或登录后再试。');
+                        return false;
                     }
                 }
             } else {
-                // 无法获取设置，假设允许上传
-                console.warn('无法获取游客上传设置，默认允许上传');
+                // 无法获取设置，为安全起见，禁止上传
+                console.warn('无法获取游客上传设置，默认禁止上传');
+                disableUpload('无法获取上传权限设置，请刷新页面或联系管理员。');
+                return false;
             }
+            
+            return true; // 允许上传
         } catch (error) {
             console.error('检查游客上传设置失败:', error);
-            // 出错时默认允许上传
+            // 出错时为安全起见禁止上传
+            disableUpload('检查上传权限失败，请刷新页面或联系管理员。');
+            return false;
         }
     }
     
     // 禁用上传功能
     function disableUpload(message) {
+        // 禁用上传按钮
         uploadBtn.disabled = true;
         uploadBtn.classList.add('disabled');
         
+        // 创建并显示警告消息
         const warningMessage = document.createElement('div');
         warningMessage.className = 'warning-message';
-        warningMessage.textContent = message;
+        warningMessage.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
         
         // 移除现有的警告消息
         const existingWarning = document.querySelector('.warning-message');
@@ -599,24 +655,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 添加警告消息
         uploadContainer.appendChild(warningMessage);
         
-        // 阻止拖放
+        // 阻止所有拖放相关事件
         const preventDrag = (e) => {
             e.preventDefault();
             e.stopPropagation();
             return false;
         };
         
-        dropZone.addEventListener('dragover', preventDrag);
-        dropZone.addEventListener('dragenter', preventDrag);
-        dropZone.addEventListener('dragleave', preventDrag);
-        dropZone.addEventListener('drop', preventDrag);
+        dropZone.addEventListener('dragover', preventDrag, { capture: true });
+        dropZone.addEventListener('dragenter', preventDrag, { capture: true });
+        dropZone.addEventListener('dragleave', preventDrag, { capture: true });
+        dropZone.addEventListener('drop', preventDrag, { capture: true });
         
-        // 修改样式
+        // 修改样式，使禁用状态更加明显
         dropZone.classList.add('disabled');
         uploadBtn.textContent = '上传已禁用';
+        
+        // 显示禁用覆盖层
+        const overlay = document.createElement('div');
+        overlay.className = 'disabled-overlay';
+        overlay.innerHTML = `
+            <div class="disabled-message">
+                <i class="fas fa-lock"></i>
+                <p>游客上传已禁用</p>
+                <p class="sub-message">请登录后再试</p>
+            </div>
+        `;
+        
+        // 确保只添加一个覆盖层
+        const existingOverlay = dropZone.querySelector('.disabled-overlay');
+        if (!existingOverlay) {
+            dropZone.appendChild(overlay);
+        }
+        
+        // 清除可能存在的文件列表和确认按钮
+        const fileList = document.querySelector('.file-list');
+        const confirmBtn = document.querySelector('.confirm-upload-btn');
+        if (fileList) fileList.remove();
+        if (confirmBtn) confirmBtn.remove();
+        
+        // 显示一个明显的提示
+        showToast(message, 'warning', 8000);
     }
     
     // 初始化
     initUpload();
-    checkGuestUpload();
+    
+    // 首先检查游客上传权限，然后再允许用户操作
+    const canUpload = await checkGuestUpload();
+    console.log('游客上传权限检查结果:', canUpload);
 }); 
