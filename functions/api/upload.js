@@ -162,6 +162,7 @@ export async function onRequest(context) {
       // 解析表单数据
       const formData = await request.formData();
       const file = formData.get('file');
+      const skipDeploy = formData.get('skipDeploy') === 'true';
       
       if (!file) {
         return new Response(JSON.stringify({
@@ -285,12 +286,17 @@ export async function onRequest(context) {
         // 继续执行，不因为数据库错误而中断响应
       }
       
-      // 触发Cloudflare Pages部署钩子
-      const deployResult = await triggerDeployHook(env);
-      if (deployResult.success) {
-        console.log('图片上传后部署已成功触发');
+      // 只有在不跳过部署的情况下才触发部署钩子
+      if (!skipDeploy) {
+        // 触发Cloudflare Pages部署钩子
+        const deployResult = await triggerDeployHook(env);
+        if (deployResult.success) {
+          console.log('图片上传后部署已成功触发');
+        } else {
+          console.error('图片上传后部署失败:', deployResult.error);
+        }
       } else {
-        console.error('图片上传后部署失败:', deployResult.error);
+        console.log('根据请求参数跳过触发部署');
       }
       
       // 返回链接信息
@@ -544,7 +550,7 @@ export async function onRequest(context) {
   if (action === 'complete' && request.method === 'POST') {
     try {
       const requestData = await request.json();
-      const { sessionId } = requestData;
+      const { sessionId, skipDeploy } = requestData;
       
       // 验证参数
       if (!sessionId) {
@@ -719,12 +725,17 @@ export async function onRequest(context) {
         // 继续执行，不因为数据库错误而中断响应
       }
       
-      // 触发Cloudflare Pages部署钩子
-      const deployResult = await triggerDeployHook(env);
-      if (deployResult.success) {
-        console.log('图片上传后部署已成功触发');
+      // 只有在不跳过部署的情况下才触发部署钩子
+      if (!skipDeploy) {
+        // 触发Cloudflare Pages部署钩子
+        const deployResult = await triggerDeployHook(env);
+        if (deployResult.success) {
+          console.log('图片上传后部署已成功触发');
+        } else {
+          console.error('图片上传后部署失败:', deployResult.error);
+        }
       } else {
-        console.error('图片上传后部署失败:', deployResult.error);
+        console.log('根据请求参数跳过触发部署');
       }
       
       // 返回链接信息
