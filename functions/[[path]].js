@@ -250,11 +250,14 @@ export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   const path = url.pathname;
-  
-  // 检查是否是访问/images/路径
+
+  // 只对/images/路径应用特殊处理，其他所有路径都通过Hono框架处理
   if (path.startsWith('/images/')) {
     // 检查是否是尝试访问目录（末尾没有文件扩展名）
     const hasFileExtension = /\.[a-zA-Z0-9]+$/.test(path);
+    
+    // 检查文件是否实际存在 - 如果确实存在，CloudFlare Pages会直接处理，不会到达这里
+    // 所以如果代码执行到这里，说明文件不存在或是目录访问
     
     if (!hasFileExtension) {
       // 尝试访问目录，返回403 Forbidden
@@ -265,8 +268,7 @@ export async function onRequest(context) {
         },
       });
     } else {
-      // 尝试访问可能不存在的文件，返回404 Not Found
-      // 注意：正常情况下，存在的图片文件应该由CloudFlare Pages直接处理，而不会执行到这里
+      // 文件不存在，返回404 Not Found
       return new Response('Not Found: The requested image does not exist', {
         status: 404,
         headers: {
@@ -276,6 +278,6 @@ export async function onRequest(context) {
     }
   }
   
-  // 对于非/images/路径，继续使用Hono框架处理请求
+  // 对于所有其他路径，使用Hono框架处理
   return app.fetch(request, env);
 }
