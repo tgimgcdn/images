@@ -2,6 +2,57 @@
  * 分块上传组件 - 能够处理大文件，避免CloudFlare CPU超时
  */
 
+// 检查是否已经定义了原始控制台引用，避免重复定义
+if (!window.originalConsole) {
+  window.originalConsole = {
+    log: console.log,
+    info: console.info,
+    warn: console.warn,
+    error: console.error,
+    debug: console.debug
+  };
+  
+  // 创建自定义控制台处理器
+  function setupConsoleHandling() {
+    // 检查调试模式
+    const isDebugMode = localStorage.getItem('debugMode') === 'true' || 
+                       new URLSearchParams(window.location.search).has('debug');
+    
+    // 重写控制台方法
+    console.log = function(...args) {
+      if (isDebugMode) {
+        window.originalConsole.log.apply(console, args);
+      }
+    };
+    
+    console.info = function(...args) {
+      if (isDebugMode) {
+        window.originalConsole.info.apply(console, args);
+      }
+    };
+    
+    console.warn = function(...args) {
+      if (isDebugMode) {
+        window.originalConsole.warn.apply(console, args);
+      }
+    };
+    
+    console.debug = function(...args) {
+      if (isDebugMode) {
+        window.originalConsole.debug.apply(console, args);
+      }
+    };
+    
+    // 错误日志始终保留，不受调试模式影响
+    console.error = function(...args) {
+      window.originalConsole.error.apply(console, args);
+    };
+  }
+  
+  // 初始化控制台处理
+  setupConsoleHandling();
+}
+
 class ChunkedUploader {
   constructor(file, options = {}) {
     // 文件信息
