@@ -106,6 +106,13 @@ class ChunkedUploader {
         // 处理特定类型的错误
         if (response.status === 409) {
           throw new Error(`文件 "${this.fileName}" 已存在，请重命名后重试`);
+        } else if (response.status === 403) {
+          // 明确处理游客上传禁用的情况
+          if (result.error && result.error.includes('游客上传已禁用')) {
+            throw new Error('游客上传已禁用，请登录后再试');
+          } else {
+            throw new Error('您没有权限上传文件');
+          }
         } else {
           throw new Error(result.error || `创建上传会话失败: ${response.status}`);
         }
@@ -277,16 +284,31 @@ class ChunkedUploader {
         // 处理文件已存在的情况
         this.error.details = '文件已存在，请重命名后重试';
         this.error.status = 409;
+      } else if (error.message.includes('游客上传已禁用') || error.message.includes('没有权限上传')) {
+        // 处理权限错误
+        this.error.details = '请登录后再试';
+        this.error.status = 403;
       }
     } else if (typeof error === 'string') {
       // 如果是字符串，转换为Error对象
       this.error = new Error(error);
+      
+      // 检查权限相关错误
+      if (error.includes('游客上传已禁用') || error.includes('没有权限')) {
+        this.error.details = '请登录后再试';
+        this.error.status = 403;
+      }
     } else {
       // 其他情况，创建一个新的Error对象
       try {
         const errorMessage = error.message || JSON.stringify(error) || '未知错误';
         this.error = new Error(errorMessage);
         this.error.details = error.details || JSON.stringify(error);
+        
+        // 检查状态码
+        if (error.status === 403) {
+          this.error.details = '没有上传权限，请登录后再试';
+        }
       } catch (e) {
         this.error = new Error('发生未知错误');
       }
