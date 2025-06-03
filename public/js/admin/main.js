@@ -861,58 +861,99 @@ async function batchDeleteImages() {
             
             console.log('准备批量删除图片:', imageIds);
             
-            // 使用新的批量删除API
-            const response = await safeApiCall('/api/images/batch-delete', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ imageIds }),
-                // 增加超时时间，批量操作可能需要更长时间
-                timeout: 30000
-            });
-            
-            console.log('批量删除响应:', response);
-            
-            if (!response.error) {
-                const successCount = response.results?.success?.length || 0;
-                const failCount = response.results?.failed?.length || 0;
-                
-                // 从DOM中移除成功删除的图片卡片
-                if (successCount > 0 && response.results?.success) {
-                    response.results.success.forEach(id => {
-                        const card = document.querySelector(`.image-card[data-id="${id}"]`);
-                        if (card) {
-                            card.remove();
-                        }
-                    });
-                }
-                
-                // 更新仪表盘统计数据
-                await updateDashboardStats();
-                
-                // 重置全选状态
-                if (selectAllCheckbox) {
-                    selectAllCheckbox.checked = false;
-                }
-                
-                // 如果当前页图片不足，尝试加载更多图片填充
-                await checkAndLoadMoreImages();
-                
-                // 显示结果
-                let message = '';
-                if (successCount > 0) {
-                    message += `成功删除 ${successCount} 张图片。`;
-                }
-                if (failCount > 0) {
-                    message += `${failCount} 张图片删除失败。`;
-                }
-                
-                showNotification(message, successCount > 0 ? 'success' : 'error');
-            } else {
-                console.error('批量删除失败:', response.error);
-                showNotification('批量删除失败: ' + (response.error || '未知错误'), 'error');
+            // 图片ID分批，每批6张
+            const batchSize = 6;
+            const batches = [];
+            for (let i = 0; i < imageIds.length; i += batchSize) {
+                batches.push(imageIds.slice(i, i + batchSize));
             }
+            
+            console.log(`将${imageIds.length}张图片分成${batches.length}批处理`);
+            
+            // 存储所有批次的结果
+            const allResults = {
+                success: [],
+                failed: []
+            };
+            
+            // 逐批处理
+            for (let i = 0; i < batches.length; i++) {
+                const batchIds = batches[i];
+                
+                // 显示当前处理批次进度
+                showNotification(`正在处理第${i + 1}/${batches.length}批，共${batchIds.length}张图片...`, 'info', 2000);
+                
+                console.log(`处理第${i + 1}/${batches.length}批，ID:`, batchIds);
+                
+                // 发送当前批次请求
+                const response = await safeApiCall('/api/images/batch-delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ imageIds: batchIds }),
+                    timeout: 30000 // 30秒超时，对于6张图片应该足够
+                });
+                
+                console.log(`第${i + 1}批响应:`, response);
+                
+                if (!response.error && response.results) {
+                    // 汇总成功和失败结果
+                    if (response.results.success && response.results.success.length > 0) {
+                        allResults.success.push(...response.results.success);
+                        
+                        // 从DOM中移除成功删除的图片卡片
+                        response.results.success.forEach(id => {
+                            const card = document.querySelector(`.image-card[data-id="${id}"]`);
+                            if (card) {
+                                card.remove();
+                            }
+                        });
+                    }
+                    
+                    if (response.results.failed && response.results.failed.length > 0) {
+                        allResults.failed.push(...response.results.failed);
+                    }
+                } else {
+                    // 如果整批失败，将所有ID添加到失败列表
+                    allResults.failed.push(...batchIds.map(id => ({
+                        id,
+                        error: response.error || '未知错误'
+                    })));
+                    console.error(`第${i + 1}批处理失败:`, response.error);
+                }
+                
+                // 小间隔，避免请求过于频繁
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            // 批处理全部完成后的操作
+            const successCount = allResults.success.length;
+            const failCount = allResults.failed.length;
+            
+            // 更新仪表盘统计数据
+            await updateDashboardStats();
+            
+            // 重置全选状态
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
+            }
+            
+            // 如果当前页图片不足，尝试加载更多图片填充
+            await checkAndLoadMoreImages();
+            
+            // 显示最终结果
+            let message = '';
+            if (successCount > 0) {
+                message += `成功删除 ${successCount} 张图片。`;
+            }
+            if (failCount > 0) {
+                message += `${failCount} 张图片删除失败。`;
+            }
+            
+            showNotification(message, successCount > 0 ? 'success' : 'error');
+            console.log('批量删除最终结果:', allResults);
+            
         } catch (error) {
             console.error('批量删除图片失败:', error);
             showNotification('批量删除操作失败: ' + error.message, 'error');
