@@ -66,47 +66,35 @@ async function checkSession(request, env) {
 
 /**
  * 触发Cloudflare Pages部署钩子
- * @param {Object} env - 环境变量
- * @returns {Promise<Object>} - 返回部署结果
+ * @param {Object} env 环境变量
+ * @returns {Object} 部署结果
  */
 async function triggerDeployHook(env) {
-  // 检查环境变量是否存在
-  if (!env.DEPLOY_HOOK) {
-    console.log('DEPLOY_HOOK环境变量未设置，跳过部署');
-    return { success: false, error: 'DEPLOY_HOOK环境变量未设置' };
+  // 检查部署钩子是否正确配置
+  if (!env.DEPLOY_HOOK || !env.DEPLOY_HOOK.startsWith('https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/')) {
+    console.error('DEPLOY_HOOK环境变量未正确设置或格式不正确');
+    return { success: false, error: 'DEPLOY_HOOK环境变量未正确设置或格式不正确' };
   }
 
-  // 检查格式是否正确
-  const deployHook = env.DEPLOY_HOOK.trim();
-  if (!deployHook.startsWith('https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/')) {
-    console.error('DEPLOY_HOOK格式不正确，应以https://api.cloudflare.com/开头');
-    return { success: false, error: 'DEPLOY_HOOK格式不正确' };
-  }
-
-  // 直接使用DEPLOY_HOOK的值
-  const deployUrl = deployHook;
-  
   try {
-    console.log('触发Cloudflare Pages部署...');
-    const response = await fetch(deployUrl, {
+    // GitHub API已经确认了文件上传成功，无需额外延时
+    console.log('正在触发Cloudflare Pages部署钩子...');
+    const response = await fetch(env.DEPLOY_HOOK, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
     });
 
     if (response.ok) {
       const result = await response.json();
-      console.log('部署成功触发:', result);
+      console.log('部署触发成功:', result);
       return { success: true, result };
     } else {
-      const errorText = await response.text();
-      console.error('部署触发失败:', response.status, errorText);
-      return { success: false, error: `部署触发失败: ${response.status} ${errorText}` };
+      const error = await response.text();
+      console.error('部署触发失败:', response.status, error);
+      return { success: false, error: `部署触发失败: ${response.status} ${error}` };
     }
   } catch (error) {
-    console.error('部署钩子请求异常:', error);
-    return { success: false, error: `部署钩子请求异常: ${error.message}` };
+    console.error('部署触发过程中出错:', error);
+    return { success: false, error: `部署触发过程中出错: ${error.message}` };
   }
 }
 
