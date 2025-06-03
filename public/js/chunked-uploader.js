@@ -82,31 +82,42 @@ class ChunkedUploader {
    * 创建上传会话
    */
   async _createUploadSession() {
-    const response = await fetch('/api/upload?action=create-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fileName: this.fileName,
-        fileSize: this.file.size,
-        totalChunks: this.totalChunks,
-        mimeType: this.file.type
-      })
-    });
-    
-    if (!response.ok) {
-      let errorText = await response.text();
+    try {
+      const response = await fetch('/api/upload?action=create-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: this.fileName,
+          fileSize: this.file.size,
+          totalChunks: this.totalChunks,
+          mimeType: this.file.type
+        })
+      });
+      
+      const responseText = await response.text();
+      let result;
       try {
-        const errorJson = JSON.parse(errorText);
-        errorText = errorJson.error || errorText;
-      } catch (e) {}
-      throw new Error(`创建上传会话失败: ${errorText}`);
-    }
-    
-    const result = await response.json();
-    this.sessionId = result.sessionId;
-    
-    if (!this.sessionId) {
-      throw new Error('服务器未返回有效的会话ID');
+        result = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`创建上传会话失败: 无效的响应格式 - ${responseText}`);
+      }
+      
+      if (!response.ok) {
+        // 处理特定类型的错误
+        if (response.status === 409) {
+          throw new Error(`文件 "${this.fileName}" 已存在，请重命名后重试`);
+        } else {
+          throw new Error(result.error || `创建上传会话失败: ${response.status}`);
+        }
+      }
+      
+      this.sessionId = result.sessionId;
+      
+      if (!this.sessionId) {
+        throw new Error('服务器未返回有效的会话ID');
+      }
+    } catch (error) {
+      throw error;
     }
   }
   
@@ -193,16 +204,22 @@ class ChunkedUploader {
         })
       });
       
-      if (!response.ok) {
-        let errorText = await response.text();
-        try {
-          const errorJson = JSON.parse(errorText);
-          errorText = errorJson.error || errorText;
-        } catch (e) {}
-        throw new Error(`完成上传失败: ${errorText}`);
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`完成上传失败: 无效的响应格式 - ${responseText}`);
       }
       
-      const result = await response.json();
+      if (!response.ok) {
+        // 处理特定类型的错误
+        if (response.status === 409) {
+          throw new Error(`文件 "${this.fileName}" 已存在，请重命名后重试`);
+        } else {
+          throw new Error(result.error || `完成上传失败: ${response.status}`);
+        }
+      }
       
       this._setStatus('completed');
       this.onComplete(result);
@@ -254,6 +271,13 @@ class ChunkedUploader {
     } else if (error instanceof Error) {
       // 如果是标准Error对象，保留它
       this.error = error;
+      
+      // 尝试从错误消息中提取更多信息
+      if (error.message.includes('已存在')) {
+        // 处理文件已存在的情况
+        this.error.details = '文件已存在，请重命名后重试';
+        this.error.status = 409;
+      }
     } else if (typeof error === 'string') {
       // 如果是字符串，转换为Error对象
       this.error = new Error(error);
