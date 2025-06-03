@@ -294,7 +294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         // 处理特定类型的错误
                         if (xhr.status === 409) {
                             // 文件已存在冲突
-                            errorMessage = `文件 "${file.name}" 已存在，请重命名后重试`;
+                            errorMessage = errorResponse.error || `文件 "${file.name}" 已存在，请重命名后重试`;
                         } else if (xhr.status === 413) {
                             // 文件太大
                             errorMessage = '文件大小超过服务器限制';
@@ -304,6 +304,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (errorResponse.error && errorResponse.error.includes('游客上传已禁用')) {
                                 errorMessage = '游客上传已禁用，请登录后再试';
                             }
+                        }
+                        
+                        // 添加更详细的错误细节
+                        if (errorResponse.message) {
+                            errorDetails = errorResponse.message;
+                        }
+                        if (errorResponse.details && typeof errorResponse.details === 'string') {
+                            errorDetails = errorResponse.details;
+                        } else if (errorResponse.details && typeof errorResponse.details === 'object') {
+                            errorDetails = JSON.stringify(errorResponse.details);
                         }
                     } catch (e) {
                         errorMessage = `服务器错误 (${xhr.status})`;
