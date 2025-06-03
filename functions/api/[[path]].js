@@ -1543,10 +1543,13 @@ export async function onRequest(context) {
         
         // 安全解析请求体
         let imageIds;
+        let skipDeploy = false; // 添加默认值
         try {
           const requestBody = await request.json();
           console.log('解析请求体:', requestBody);
           imageIds = requestBody.imageIds;
+          skipDeploy = !!requestBody.skipDeploy; // 获取是否跳过部署的标志
+          console.log('是否跳过部署:', skipDeploy);
         } catch (parseError) {
           console.error('解析请求体失败:', parseError);
           return jsonResponse({ 
@@ -1629,15 +1632,17 @@ export async function onRequest(context) {
           }
         }
         
-        // 触发Cloudflare Pages部署钩子 - 仅在所有删除操作完成后触发一次
-        if (results.success.length > 0) {
-          console.log(`所有删除操作已完成(成功: ${results.success.length}, 失败: ${results.failed.length})，现在触发一次部署`);
+        // 触发Cloudflare Pages部署钩子 - 仅在不跳过部署且有成功删除图片时触发
+        if (results.success.length > 0 && !skipDeploy) {
+          console.log(`所有删除操作已完成(成功: ${results.success.length}, 失败: ${results.failed.length})，现在触发部署`);
           const deployResult = await triggerDeployHook(env);
           if (deployResult.success) {
             console.log('批量删除后部署已成功触发');
           } else {
             console.error('批量删除后部署失败:', deployResult.error);
           }
+        } else if (skipDeploy) {
+          console.log(`跳过部署触发，等待更多批次处理完成`);
         }
 
         return jsonResponse({
