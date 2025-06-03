@@ -279,31 +279,3 @@ export async function onRequest(context) {
   // 对于非/images/路径，继续使用Hono框架处理请求
   return app.fetch(request, env);
 }
-
-// 服务静态内容的函数
-function serveStatic(context) {
-  // 使用现有实现或返回index.html
-  const response = new Response(
-    `<!DOCTYPE html>
-    <html lang="zh-CN">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>参界图床</title>
-      <link rel="stylesheet" href="/css/style.css">
-    </head>
-    <body>
-      <div class="container">
-        <h1>参界图床</h1>
-        <!-- 网站内容 -->
-      </div>
-    </body>
-    </html>`,
-    {
-      headers: {
-        'content-type': 'text/html;charset=UTF-8',
-      },
-    }
-  );
-  return response;
-} 
