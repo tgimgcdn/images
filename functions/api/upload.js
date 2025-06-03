@@ -230,7 +230,16 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({
         success: false,
         error: '上传失败',
-        details: error.message
+        message: error.message,
+        details: {
+          stack: error.stack,
+          env: {
+            hasToken: !!env.GITHUB_TOKEN,
+            hasOwner: !!env.GITHUB_OWNER,
+            hasRepo: !!env.GITHUB_REPO,
+            hasDB: !!env.DB
+          }
+        }
       }), {
         status: 500,
         headers: {
@@ -308,7 +317,15 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({
         success: false,
         error: '创建上传会话失败',
-        details: error.message
+        message: error.message,
+        details: {
+          stack: error.stack,
+          env: {
+            hasToken: !!env.GITHUB_TOKEN,
+            hasOwner: !!env.GITHUB_OWNER,
+            hasRepo: !!env.GITHUB_REPO
+          }
+        }
       }), {
         status: 500,
         headers: {
@@ -386,7 +403,12 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({
         success: false,
         error: '上传分块失败',
-        details: error.message
+        message: error.message,
+        details: {
+          stack: error.stack,
+          sessionExists: !!uploadSessions.get(sessionId),
+          sessionChunksExists: !!sessionChunks.get(sessionId)
+        }
       }), {
         status: 500,
         headers: {
@@ -568,7 +590,18 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({
         success: false,
         error: '完成上传失败',
-        details: error.message
+        message: error.message,
+        details: {
+          stack: error.stack,
+          env: {
+            hasToken: !!env.GITHUB_TOKEN,
+            hasOwner: !!env.GITHUB_OWNER,
+            hasRepo: !!env.GITHUB_REPO,
+            hasDB: !!env.DB
+          },
+          sessionExists: !!uploadSessions.get(sessionId),
+          chunksCount: sessionChunks.get(sessionId)?.size || 0
+        }
       }), {
         status: 500,
         headers: {
@@ -616,7 +649,12 @@ export async function onRequest(context) {
       console.error('取消上传失败:', error);
       return new Response(JSON.stringify({
         success: false,
-        error: '取消上传失败'
+        error: '取消上传失败',
+        message: error.message,
+        details: {
+          stack: error.stack,
+          sessionExists: sessionId ? !!uploadSessions.get(sessionId) : false
+        }
       }), {
         status: 500,
         headers: {
