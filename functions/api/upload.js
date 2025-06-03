@@ -72,6 +72,53 @@ function arrayBufferToBase64(buffer) {
   return btoa(binary);
 }
 
+// 导入或定义triggerDeployHook函数
+/**
+ * 触发Cloudflare Pages部署钩子
+ * @param {Object} env - 环境变量
+ * @returns {Promise<Object>} - 返回部署结果
+ */
+async function triggerDeployHook(env) {
+  // 检查环境变量是否存在
+  if (!env.DEPLOY_HOOK) {
+    console.log('DEPLOY_HOOK环境变量未设置，跳过部署');
+    return { success: false, error: 'DEPLOY_HOOK环境变量未设置' };
+  }
+
+  // 检查格式是否正确
+  const deployHook = env.DEPLOY_HOOK.trim();
+  if (!deployHook.startsWith('@https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/')) {
+    console.error('DEPLOY_HOOK格式不正确，应以@https://api.cloudflare.com/开头');
+    return { success: false, error: 'DEPLOY_HOOK格式不正确' };
+  }
+
+  // 提取真实URL
+  const deployUrl = deployHook.substring(1);
+  
+  try {
+    console.log('触发Cloudflare Pages部署...');
+    const response = await fetch(deployUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log('部署成功触发:', result);
+      return { success: true, result };
+    } else {
+      const errorText = await response.text();
+      console.error('部署触发失败:', response.status, errorText);
+      return { success: false, error: `部署触发失败: ${response.status} ${errorText}` };
+    }
+  } catch (error) {
+    console.error('部署钩子请求异常:', error);
+    return { success: false, error: `部署钩子请求异常: ${error.message}` };
+  }
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -236,6 +283,14 @@ export async function onRequest(context) {
       } catch (dbError) {
         console.error('数据库保存失败:', dbError);
         // 继续执行，不因为数据库错误而中断响应
+      }
+      
+      // 触发Cloudflare Pages部署钩子
+      const deployResult = await triggerDeployHook(env);
+      if (deployResult.success) {
+        console.log('图片上传后部署已成功触发');
+      } else {
+        console.error('图片上传后部署失败:', deployResult.error);
       }
       
       // 返回链接信息
@@ -662,6 +717,14 @@ export async function onRequest(context) {
       } catch (dbError) {
         console.error('数据库保存失败:', dbError);
         // 继续执行，不因为数据库错误而中断响应
+      }
+      
+      // 触发Cloudflare Pages部署钩子
+      const deployResult = await triggerDeployHook(env);
+      if (deployResult.success) {
+        console.log('图片上传后部署已成功触发');
+      } else {
+        console.error('图片上传后部署失败:', deployResult.error);
       }
       
       // 返回链接信息
