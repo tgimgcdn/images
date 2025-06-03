@@ -12,6 +12,10 @@
       "script": "functions/api/upload.js"
     },
     {
+      "pattern": "/api/deploy-trigger",
+      "script": "functions/api/deploy-trigger.js"
+    },
+    {
       "pattern": "/api/*",
       "script": "functions/api/[[path]].js"
     },
